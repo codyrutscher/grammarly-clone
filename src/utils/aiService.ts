@@ -1,4 +1,4 @@
-// Note: OpenAI API key is hardcoded in the constructor below
+// OpenAI API key is now loaded from environment variables
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -16,7 +16,7 @@ export class AIService {
   private baseUrl = 'https://api.openai.com/v1';
 
   constructor() {
-    this.apiKey = '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';
+    this.apiKey = import.meta.env.VITE_OPENAI_API_KEY || '';
   }
 
   async chatWithAI(messages: ChatMessage[]): Promise<AIResponse> {

@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProfileStore } from '../store/useProfileStore'
 import { updateUserProfile } from '../utils/profileService'
-import { logout } from '../utils/firebaseUtils'
+import { deleteUser } from 'firebase/auth'
+import { collection, query, where, getDocs, deleteDoc } from 'firebase/firestore'
+import { db } from '../firebase'
 
 interface UserProfileModalProps {
   isOpen: boolean
@@ -13,7 +15,7 @@ export const UserProfileModal = ({ isOpen, onClose }: UserProfileModalProps) => 
   const { user } = useAuthStore()
   const { profile, updateProfile } = useProfileStore()
   const [saving, setSaving] = useState(false)
-
+  const [deleting, setDeleting] = useState(false)
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -39,8 +41,6 @@ export const UserProfileModal = ({ isOpen, onClose }: UserProfileModalProps) => 
       })
     }
   }, [profile])
-
-
 
   console.log('UserProfileModal state:', { 
     isOpen, 
@@ -83,8 +83,6 @@ export const UserProfileModal = ({ isOpen, onClose }: UserProfileModalProps) => 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
-
-
 
   const handleSaveProfile = async () => {
     if (!user) return
@@ -137,8 +135,6 @@ export const UserProfileModal = ({ isOpen, onClose }: UserProfileModalProps) => 
     }
   }
 
-
-
   const handleDeleteAccount = async () => {
     if (!user) return
     
@@ -147,17 +143,82 @@ export const UserProfileModal = ({ isOpen, onClose }: UserProfileModalProps) => 
     )
     
     if (!confirmed) return
+
+    // Double confirmation for safety
+    const doubleConfirmed = window.confirm(
+      'This is your final warning. Deleting your account will permanently remove:\n\n' +
+      '• All your documents and drafts\n' +
+      '• Your profile information\n' +
+      '• All writing history and analytics\n' +
+      '• This action CANNOT be undone\n\n' +
+      'Type "DELETE" in the next prompt to confirm deletion.'
+    )
+
+    if (!doubleConfirmed) return
+
+    const finalConfirmation = window.prompt(
+      'Please type "DELETE" (in capital letters) to confirm account deletion:'
+    )
+
+    if (finalConfirmation !== 'DELETE') {
+      alert('Account deletion cancelled. You must type "DELETE" exactly to confirm.')
+      return
+    }
     
     try {
-      // Here you would implement account deletion logic
-      // For now, we'll just sign out the user
-      console.log('Account deletion requested for user:', user.uid)
-      alert('Account deletion feature will be implemented. For now, signing you out.')
-             await logout()
+      setDeleting(true)
+      
+      // Step 1: Delete all user documents from Firestore
+      console.log('Deleting user documents...')
+      const documentsQuery = query(
+        collection(db, 'documents'),
+        where('userId', '==', user.uid)
+      )
+      const documentsSnapshot = await getDocs(documentsQuery)
+      
+      const deletePromises = documentsSnapshot.docs.map(doc => deleteDoc(doc.ref))
+      await Promise.all(deletePromises)
+      console.log(`Deleted ${documentsSnapshot.docs.length} documents`)
+
+      // Step 2: Delete user profile from Firestore
+      console.log('Deleting user profile...')
+      try {
+        const profileQuery = query(
+          collection(db, 'profiles'),
+          where('userId', '==', user.uid)
+        )
+        const profileSnapshot = await getDocs(profileQuery)
+        const profileDeletePromises = profileSnapshot.docs.map(doc => deleteDoc(doc.ref))
+        await Promise.all(profileDeletePromises)
+        console.log('User profile deleted')
+      } catch (profileError) {
+        console.warn('Error deleting profile (may not exist):', profileError)
+      }
+
+      // Step 3: Delete the Firebase Auth user account
+      console.log('Deleting Firebase Auth user...')
+      await deleteUser(user)
+      console.log('User account deleted successfully')
+
+      // Step 4: Show success message and close modal
+      alert('Your account has been permanently deleted. Thank you for using StudyWrite.')
       onClose()
-    } catch (error) {
+      
+    } catch (error: any) {
       console.error('Error deleting account:', error)
-      alert('Failed to delete account. Please try again.')
+      
+      let errorMessage = 'Failed to delete account. Please try again.'
+      
+      // Handle specific Firebase Auth errors
+      if (error.code === 'auth/requires-recent-login') {
+        errorMessage = 'For security reasons, you need to sign in again before deleting your account. Please sign out, sign back in, and try again.'
+      } else if (error.code === 'auth/user-not-found') {
+        errorMessage = 'User account not found. It may have already been deleted.'
+      }
+      
+      alert(errorMessage)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -285,15 +346,14 @@ export const UserProfileModal = ({ isOpen, onClose }: UserProfileModalProps) => 
                 </p>
                 <button
                   onClick={handleDeleteAccount}
+                  disabled={deleting}
                   className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium"
                 >
-                  Delete Account
+                  {deleting ? 'Deleting...' : 'Delete Account'}
                 </button>
               </div>
             </div>
           </div>
-
-
         </div>
       </div>
     </div>
