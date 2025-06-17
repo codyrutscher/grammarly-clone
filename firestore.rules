@@ -1,0 +1,25 @@
+   rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow users to read and write their own documents
+    match /documents/{document} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+    
+    // Allow users to read and write their own user profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Users can manage their own profiles - THIS IS THE MISSING RULE
+    match /profiles/{userId} {
+      allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow reading public profiles for search functionality
+    match /profiles/{userId} {
+      allow read: if request.auth != null && resource.data.preferences.privacy.profileVisibility == 'public';
+    }
+  }
+}
