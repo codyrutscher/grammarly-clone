@@ -33,6 +33,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Environment Variables Documentation**: Created `ENV_SETUP.md` with comprehensive setup instructions
 
+- **Dark Mode Support**: Comprehensive dark mode implementation across the entire application
+  - **Beautiful Dark Mode Toggle**: Animated toggle with sun/moon icons and smooth transitions
+    - Available on both landing page and main application
+    - Three sizes (sm, md, lg) with appropriate scaling
+    - Gradient backgrounds (yellow/orange for light, indigo/purple for dark)
+    - Hover effects with shadow and scale animations
+  - **Persistent Preferences**: Dark mode state saved to localStorage and restored on app reload
+  - **Automatic Theme Management**: Zustand store automatically manages document class for Tailwind CSS
+  - **Smooth Transitions**: 300ms color transitions for all UI elements
+  - **Comprehensive Coverage**: Dark mode support for:
+    - Landing page (hero section, features, backgrounds)
+    - Main application (editor, toolbar, sidebar)
+    - All modals and panels
+    - Text colors, backgrounds, borders, and shadows
+  - **Optimized Color Schemes**: Carefully selected colors for better readability and reduced eye strain
+
 ### Changed
 - **Account Deletion**: Upgraded from mock implementation (just logout) to complete data removal
 - **Plagiarism Detection**: Upgraded from simple mock data to comprehensive multi-method detection system

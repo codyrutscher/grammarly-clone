@@ -3,6 +3,8 @@ import { useAuthStore } from './store/useAuthStore'
 import { useAuthProvider } from './hooks/useAuthProvider'
 import { useProfileProvider } from './hooks/useProfileProvider'
 import { useAutoSave } from './hooks/useAutoSave'
+import { DarkModeToggle } from './components/DarkModeToggle'
+import { useDarkModeStore } from './store/useDarkModeStore'
 import { useDocumentStore } from './store/useDocumentStore'
 import { useProfileStore } from './store/useProfileStore'
 import { AuthModal } from './components/AuthModal'
@@ -20,6 +22,7 @@ function App() {
   
   const { user, loading } = useAuthStore()
   const { profile, loading: profileLoading } = useProfileStore()
+  const { isDarkMode } = useDarkModeStore()
   
   // Debug logging
   console.log('App state:', { user: !!user, profile: !!profile, profileLoading })
@@ -52,7 +55,11 @@ function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-x-hidden">
+      <div className={`min-h-screen transition-colors duration-300 relative overflow-x-hidden ${
+        isDarkMode 
+          ? 'bg-gradient-to-br from-gray-900 via-blue-900 to-indigo-900' 
+          : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+      }`}>
         {/* Background decorations */}
         <div className="absolute inset-0 overflow-hidden z-0">
           {/* Top section circles */}
@@ -70,23 +77,31 @@ function App() {
         </div>
 
         {/* Header */}
-        <nav className="bg-white/80 backdrop-blur-md shadow-sm border-b border-white/20 relative z-10">
+        <nav className={`backdrop-blur-md shadow-sm border-b relative z-10 transition-colors duration-300 ${
+          isDarkMode 
+            ? 'bg-gray-800/80 border-gray-700/50' 
+            : 'bg-white/80 border-white/20'
+        }`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 bg-gradient-to-br from-grammarly-blue to-purple-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">G</span>
+                  <span className="text-white font-bold text-lg">S</span>
                 </div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-grammarly-blue to-purple-600 bg-clip-text text-transparent">
                   StudyWrite
                 </h1>
               </div>
-              <button
-                onClick={() => setShowAuthModal(true)}
-                className="bg-gradient-to-r from-grammarly-blue to-purple-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-              >
-                ✨ Sign In
-              </button>
+              
+              <div className="flex items-center space-x-4">
+                <DarkModeToggle size="sm" />
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="bg-gradient-to-r from-grammarly-blue to-purple-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                  ✨ Sign In
+                </button>
+              </div>
             </div>
           </div>
         </nav>
@@ -95,7 +110,7 @@ function App() {
         <div className="py-20 px-4 relative z-10">
           <div className="text-center max-w-5xl mx-auto">
             <div className="mb-8">
-              <h2 className="text-6xl font-bold text-gray-900 mb-4 leading-tight">
+              <h2 className={`text-6xl font-bold mb-4 leading-tight transition-colors ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                 <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">StudyWrite</span>{' '}
                 <br />
                 <span className="text-4xl">AI Writing Assistant for </span>
@@ -103,44 +118,56 @@ function App() {
                   Students
                 </span>
               </h2>
-              <h2 className="text-2xl text-gray-600 mb-4 leading-tight">
+              <h2 className={`text-2xl mb-4 leading-tight transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 A Grammarly Clone for Students
               </h2>
               <div className="w-24 h-1 bg-gradient-to-r from-grammarly-blue to-purple-600 mx-auto rounded-full"></div>
             </div>
             
-            <p className="text-xl text-gray-600 mb-12 leading-relaxed max-w-3xl mx-auto">
+            <p className={`text-xl mb-12 leading-relaxed max-w-3xl mx-auto transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
               Perfect for essays, research papers, and academic writing. Get real-time AI suggestions tailored to 
               <strong> MLA, APA, Chicago</strong> styles with support for <strong>US, UK, Australian, and Canadian English</strong>.
             </p>
             
             <div className="grid md:grid-cols-3 gap-8 mb-12">
-              <div className="bg-white/70 backdrop-blur-sm p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-white/20 hover:border-red-200">
+              <div className={`backdrop-blur-sm p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border ${
+                isDarkMode 
+                  ? 'bg-gray-800/70 border-gray-700/50 hover:border-red-400' 
+                  : 'bg-white/70 border-white/20 hover:border-red-200'
+              }`}>
                 <div className="w-16 h-16 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto shadow-lg">
                   <span className="text-2xl">🎓</span>
                 </div>
-                <h3 className="text-xl font-bold mb-3 text-gray-800">Academic Writing Modes</h3>
-                <p className="text-gray-600 leading-relaxed">
+                <h3 className={`text-xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Academic Writing Modes</h3>
+                <p className={`leading-relaxed transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                   MLA, APA, Chicago, and Harvard style support for essays, research papers, and thesis writing
                 </p>
               </div>
               
-              <div className="bg-white/70 backdrop-blur-sm p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-white/20 hover:border-blue-200">
+              <div className={`backdrop-blur-sm p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border ${
+                isDarkMode 
+                  ? 'bg-gray-800/70 border-gray-700/50 hover:border-blue-400' 
+                  : 'bg-white/70 border-white/20 hover:border-blue-200'
+              }`}>
                 <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center mb-6 mx-auto shadow-lg">
                   <span className="text-2xl">⚡</span>
                 </div>
-                <h3 className="text-xl font-bold mb-3 text-gray-800">Speed Mode</h3>
-                <p className="text-gray-600 leading-relaxed">
+                <h3 className={`text-xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Speed Mode</h3>
+                <p className={`leading-relaxed transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                   Quick proofreading for last-minute assignments with critical error detection
                 </p>
               </div>
               
-              <div className="bg-white/70 backdrop-blur-sm p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-white/20 hover:border-orange-200">
+              <div className={`backdrop-blur-sm p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border ${
+                isDarkMode 
+                  ? 'bg-gray-800/70 border-gray-700/50 hover:border-orange-400' 
+                  : 'bg-white/70 border-white/20 hover:border-orange-200'
+              }`}>
                 <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center mb-6 mx-auto shadow-lg">
                   <span className="text-2xl">🌍</span>
                 </div>
-                <h3 className="text-xl font-bold mb-3 text-gray-800">Language Variants</h3>
-                <p className="text-gray-600 leading-relaxed">
+                <h3 className={`text-xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Language Variants</h3>
+                <p className={`leading-relaxed transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                   US, UK, Australian, and Canadian English support for international students
                 </p>
               </div>
@@ -158,42 +185,50 @@ function App() {
         </div>
 
         {/* Features Section */}
-        <div className="bg-white py-20 relative z-10">
+        <div className={`py-20 relative z-10 transition-colors duration-300 ${
+          isDarkMode ? 'bg-gray-800' : 'bg-white'
+        }`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              <h2 className={`text-4xl font-bold mb-4 transition-colors ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                 Powered by <span className="text-blue-600">AI Technology</span>
               </h2>
-              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              <p className={`text-xl max-w-3xl mx-auto transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 Our advanced AI engine analyzes your writing contextually, providing intelligent suggestions that understand meaning, not just patterns.
               </p>
             </div>
             
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
               <div className="text-center p-6">
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-4 transition-colors ${
+                  isDarkMode ? 'bg-blue-900/50' : 'bg-blue-100'
+                }`}>
                   <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Real-time Analysis</h3>
-                <p className="text-gray-600 text-sm">Get suggestions as you type with lightning-fast AI processing</p>
+                <h3 className={`text-lg font-semibold mb-2 transition-colors ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Real-time Analysis</h3>
+                <p className={`text-sm transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Get suggestions as you type with lightning-fast AI processing</p>
               </div>
               
               <div className="text-center p-6">
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-4 transition-colors ${
+                  isDarkMode ? 'bg-green-900/50' : 'bg-green-100'
+                }`}>
                   <span className="text-2xl">🎤</span>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Voice Notes</h3>
-                <p className="text-gray-600 text-sm">Record voice memos and convert speech to text instantly</p>
+                <h3 className={`text-lg font-semibold mb-2 transition-colors ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Voice Notes</h3>
+                <p className={`text-sm transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Record voice memos and convert speech to text instantly</p>
               </div>
               
               <div className="text-center p-6">
-                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-4 transition-colors ${
+                  isDarkMode ? 'bg-red-900/50' : 'bg-red-100'
+                }`}>
                   <span className="text-2xl">🔍</span>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Plagiarism Detection</h3>
-                <p className="text-gray-600 text-sm">Check for originality with comprehensive plagiarism analysis</p>
+                <h3 className={`text-lg font-semibold mb-2 transition-colors ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Plagiarism Detection</h3>
+                <p className={`text-sm transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Check for originality with comprehensive plagiarism analysis</p>
               </div>
               
               <div className="text-center p-6">
@@ -593,27 +628,33 @@ function App() {
   }
 
   return (
-    <div className="h-screen flex bg-gray-50">
+    <div className={`h-screen flex transition-colors duration-300 ${
+      isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
+    }`}>
       {/* Sidebar */}
       <DocumentSidebar />
       
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Top Bar */}
-        <div className="bg-white/95 backdrop-blur-md border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm">
+        <div className={`backdrop-blur-md border-b px-6 py-4 flex items-center justify-between shadow-sm transition-colors duration-300 ${
+          isDarkMode 
+            ? 'bg-gray-800/95 border-gray-700' 
+            : 'bg-white/95 border-gray-200'
+        }`}>
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-gradient-to-br from-grammarly-blue to-purple-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg">G</span>
               </div>
               <h1 className="text-xl font-bold bg-gradient-to-r from-grammarly-blue to-purple-600 bg-clip-text text-transparent">
-                Grammarly Clone
+                StudyWrite
               </h1>
             </div>
             {currentDocument && (
               <div className="flex">
                 <span className="text-gray-400">•</span>
-                <span className="text-gray-700 font-medium">{currentDocument.title}</span>
+                <span className={`font-medium transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{currentDocument.title}</span>
                 {/* Save status indicator */}
                 <div className="flex items-center space-x-1 ml-2 mr-4">
                   {saveStatus === 'saving' && (
@@ -640,47 +681,70 @@ function App() {
           </div>
           
           <div className="flex items-center space-x-3">
+            <DarkModeToggle size="sm" />
             <button
               onClick={() => setShowWritingSettings(true)}
-              className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:from-indigo-700 hover:to-blue-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+              className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 shadow-md hover:shadow-lg font-medium ${
+                isDarkMode 
+                  ? 'bg-gradient-to-r from-indigo-500 to-blue-500 text-white hover:from-indigo-600 hover:to-blue-600' 
+                  : 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700'
+              }`}
             >
               ⚙️ Writing Settings
             </button>
             <button
               onClick={() => setShowAnalysisPanel(true)}
-              className="bg-gradient-to-r from-grammarly-green to-emerald-500 text-white px-4 py-2 rounded-lg text-sm hover:from-green-600 hover:to-emerald-600 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+              className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 shadow-md hover:shadow-lg font-medium ${
+                isDarkMode 
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white hover:from-green-600 hover:to-emerald-500' 
+                  : 'bg-gradient-to-r from-grammarly-green to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600'
+              }`}
             >
               📊 Analysis
             </button>
             <button
               onClick={() => setShowAIChatPanel(true)}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-lg text-sm hover:from-purple-700 hover:to-pink-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+              className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 shadow-md hover:shadow-lg font-medium ${
+                isDarkMode 
+                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600' 
+                  : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700'
+              }`}
             >
               🤖 AI Assistant
             </button>
-            <div className="flex items-center space-x-3 pl-3 border-l border-gray-200">
+            <div className={`flex items-center space-x-3 pl-3 border-l transition-colors ${
+              isDarkMode ? 'border-gray-600' : 'border-gray-200'
+            }`}>
               <button
                 onClick={() => setShowProfileModal(true)}
-                className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-all duration-200"
+                className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-all duration-200 ${
+                  isDarkMode 
+                    ? 'hover:bg-gray-700 border-gray-600 hover:border-gray-500' 
+                    : 'hover:bg-blue-50 border-transparent hover:border-blue-200'
+                }`}
                 title="Manage Profile"
               >
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center border-2 border-white shadow-sm">
                   <span className="text-blue-600 text-lg">👤</span>
                 </div>
-                                  <div className="text-sm">
-                    <div className="text-gray-500 text-xs">Welcome,</div>
-                    <div className="font-medium text-gray-700">
-                      {profileLoading ? 'Loading...' : (profile?.displayName || profile?.firstName || user?.email?.split('@')[0] || 'User')}
-                    </div>
+                <div className="text-sm">
+                  <div className={`text-xs transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Welcome,</div>
+                  <div className={`font-medium transition-colors ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                    {profileLoading ? 'Loading...' : (profile?.displayName || profile?.firstName || user?.email?.split('@')[0] || 'User')}
                   </div>
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                </div>
+                <svg className={`w-4 h-4 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               
               <button
                 onClick={() => setShowProfileModal(true)}
-                className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors font-medium"
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isDarkMode 
+                    ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
                 title="Profile Settings"
               >
                 ⚙️ Profile
@@ -688,7 +752,11 @@ function App() {
               
               <button
                 onClick={handleLogout}
-                className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className={`text-sm px-3 py-1.5 border rounded-lg transition-colors ${
+                  isDarkMode 
+                    ? 'text-gray-300 hover:text-white border-gray-600 hover:bg-gray-700' 
+                    : 'text-gray-500 hover:text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
               >
                 Sign Out
               </button>

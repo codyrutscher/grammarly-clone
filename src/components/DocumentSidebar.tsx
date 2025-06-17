@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useDocumentStore } from '../store/useDocumentStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useDarkModeStore } from '../store/useDarkModeStore';
 import { createDocument, getUserDocuments, updateDocument, deleteDocument } from '../utils/firebaseUtils';
 import type { Document } from '../store/useDocumentStore';
 
@@ -13,6 +14,7 @@ interface EditableTitleProps {
 function EditableTitle({ title, onSave, isActive }: EditableTitleProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(title);
+  const { isDarkMode } = useDarkModeStore();
 
   const handleDoubleClick = () => {
     setIsEditing(true);
@@ -43,7 +45,11 @@ function EditableTitle({ title, onSave, isActive }: EditableTitleProps) {
         onChange={(e) => setEditValue(e.target.value)}
         onBlur={handleSave}
         onKeyDown={handleKeyPress}
-        className="w-full text-sm font-medium bg-white text-gray-900 border border-grammarly-blue rounded px-1 py-0.5"
+        className={`w-full text-sm font-medium border rounded px-1 py-0.5 transition-colors ${
+          isDarkMode 
+            ? 'bg-gray-700 text-white border-blue-400' 
+            : 'bg-white text-gray-900 border-grammarly-blue'
+        }`}
         autoFocus
       />
     );
@@ -51,8 +57,12 @@ function EditableTitle({ title, onSave, isActive }: EditableTitleProps) {
 
   return (
     <h3 
-      className={`font-medium text-sm truncate cursor-pointer ${
-        isActive ? 'text-white' : 'text-gray-900'
+      className={`font-medium text-sm truncate cursor-pointer transition-colors ${
+        isActive 
+          ? 'text-white' 
+          : isDarkMode 
+            ? 'text-gray-200' 
+            : 'text-gray-900'
       }`}
       onDoubleClick={handleDoubleClick}
       title="Double-click to edit"
@@ -64,6 +74,7 @@ function EditableTitle({ title, onSave, isActive }: EditableTitleProps) {
 
 export function DocumentSidebar() {
   const { user } = useAuthStore();
+  const { isDarkMode } = useDarkModeStore();
   const { 
     documents, 
     currentDocument, 
@@ -194,23 +205,39 @@ export function DocumentSidebar() {
   };
 
   return (
-    <div className="w-80 bg-gray-50 border-r border-gray-200 flex flex-col h-full">
+    <div className={`w-80 border-r flex flex-col h-full transition-colors ${
+      isDarkMode 
+        ? 'bg-gray-800 border-gray-700' 
+        : 'bg-gray-50 border-gray-200'
+    }`}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
+      <div className={`p-4 border-b transition-colors ${
+        isDarkMode ? 'border-gray-700' : 'border-gray-200'
+      }`}>
         <div className="flex items-center justify-between mb-3">
-          <h1 className="text-xl font-bold text-gray-900">Documents</h1>
+          <h1 className={`text-xl font-bold transition-colors ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>Documents</h1>
           <div className="flex items-center space-x-2">
             <button
               onClick={loadDocuments}
               disabled={loading}
-              className="bg-gray-600 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-700 disabled:opacity-50"
+              className={`px-3 py-1.5 rounded text-sm disabled:opacity-50 transition-colors ${
+                isDarkMode 
+                  ? 'bg-gray-600 text-white hover:bg-gray-500' 
+                  : 'bg-gray-600 text-white hover:bg-gray-700'
+              }`}
               title="Refresh documents"
             >
               ↻
             </button>
             <button
               onClick={() => setShowNewDocModal(true)}
-              className="bg-grammarly-blue text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700"
+              className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                isDarkMode 
+                  ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                  : 'bg-grammarly-blue text-white hover:bg-blue-700'
+              }`}
             >
               New
             </button>
@@ -218,7 +245,9 @@ export function DocumentSidebar() {
         </div>
         
         {user && (
-          <div className="text-sm text-gray-600">
+          <div className={`text-sm transition-colors ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
             {user.email} • {documents.length} documents
           </div>
         )}
@@ -227,11 +256,15 @@ export function DocumentSidebar() {
       {/* Documents List */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <div className="p-4 text-center text-gray-500">
+          <div className={`p-4 text-center transition-colors ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+          }`}>
             Loading documents...
           </div>
         ) : documents.length === 0 ? (
-          <div className="p-4 text-center text-gray-500">
+          <div className={`p-4 text-center transition-colors ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+          }`}>
             <p>No documents yet.</p>
             <p className="text-sm mt-1">Create your first document to get started.</p>
           </div>
@@ -244,23 +277,33 @@ export function DocumentSidebar() {
                 className={`p-3 mb-2 rounded cursor-pointer transition-colors group ${
                   currentDocument?.id === document.id
                     ? 'bg-grammarly-blue text-white'
-                    : 'hover:bg-gray-100'
+                    : isDarkMode 
+                      ? 'hover:bg-gray-700' 
+                      : 'hover:bg-gray-100'
                 }`}
               >
-                              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <EditableTitle
-                    title={document.title}
-                    onSave={(newTitle) => handleUpdateTitle(document.id, newTitle)}
-                    isActive={currentDocument?.id === document.id}
-                  />
-                    <p className={`text-xs mt-1 truncate ${
-                      currentDocument?.id === document.id ? 'text-blue-100' : 'text-gray-500'
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <EditableTitle
+                      title={document.title}
+                      onSave={(newTitle) => handleUpdateTitle(document.id, newTitle)}
+                      isActive={currentDocument?.id === document.id}
+                    />
+                    <p className={`text-xs mt-1 truncate transition-colors ${
+                      currentDocument?.id === document.id 
+                        ? 'text-blue-100' 
+                        : isDarkMode 
+                          ? 'text-gray-400' 
+                          : 'text-gray-500'
                     }`}>
                       {document.content || 'Empty document'}
                     </p>
-                    <div className={`text-xs mt-2 ${
-                      currentDocument?.id === document.id ? 'text-blue-100' : 'text-gray-400'
+                    <div className={`text-xs mt-2 transition-colors ${
+                      currentDocument?.id === document.id 
+                        ? 'text-blue-100' 
+                        : isDarkMode 
+                          ? 'text-gray-500' 
+                          : 'text-gray-400'
                     }`}>
                       {formatDate(document.updatedAt)}
                     </div>
@@ -268,10 +311,12 @@ export function DocumentSidebar() {
                   
                   <button
                     onClick={(e) => handleDeleteDocument(e, document.id)}
-                    className={`ml-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
+                    className={`ml-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-all ${
                       currentDocument?.id === document.id 
                         ? 'hover:bg-blue-600 text-white' 
-                        : 'hover:bg-red-100 text-red-600'
+                        : isDarkMode 
+                          ? 'hover:bg-red-900 text-red-400' 
+                          : 'hover:bg-red-100 text-red-600'
                     }`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -288,15 +333,23 @@ export function DocumentSidebar() {
       {/* New Document Modal */}
       {showNewDocModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4">Create New Document</h3>
+          <div className={`rounded-lg p-6 w-96 max-w-md mx-4 transition-colors ${
+            isDarkMode ? 'bg-gray-800' : 'bg-white'
+          }`}>
+            <h3 className={`text-lg font-semibold mb-4 transition-colors ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>Create New Document</h3>
             
             <input
               type="text"
               value={newDocTitle}
               onChange={(e) => setNewDocTitle(e.target.value)}
               placeholder="Document title"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-grammarly-blue mb-4"
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 mb-4 transition-colors ${
+                isDarkMode 
+                  ? 'bg-gray-700 text-white border-gray-600 focus:ring-blue-400 placeholder-gray-400' 
+                  : 'bg-white text-gray-900 border-gray-300 focus:ring-grammarly-blue placeholder-gray-500'
+              }`}
               autoFocus
             />
             
@@ -306,14 +359,22 @@ export function DocumentSidebar() {
                   setShowNewDocModal(false);
                   setNewDocTitle('');
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
+                className={`flex-1 px-4 py-2 border rounded transition-colors ${
+                  isDarkMode 
+                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateDocument}
                 disabled={!newDocTitle.trim() || loading}
-                className="flex-1 px-4 py-2 bg-grammarly-blue text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`flex-1 px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                  isDarkMode 
+                    ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                    : 'bg-grammarly-blue text-white hover:bg-blue-700'
+                }`}
               >
                 Create
               </button>

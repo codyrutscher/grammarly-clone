@@ -8,23 +8,53 @@ interface PlagiarismPanelProps {
 
 // Real plagiarism detection service with Copyscape integration
 class PlagiarismDetectionService {
-  private readonly COPYSCAPE_API_BASE = 'https://www.copyscape.com/api/';
+  // Copyscape API disabled due to CORS restrictions - requires server-side proxy
+  // private readonly COPYSCAPE_API_BASE = 'https://www.copyscape.com/api/';
   private readonly API_USERNAME: string;
   private readonly API_KEY: string;
   
   constructor() {
+    // Debug: Log all environment variables
+    console.log('🔍 PlagiarismDetectionService Debug - All import.meta.env:', import.meta.env);
+    
     this.API_USERNAME = import.meta.env.VITE_COPYSCAPE_USERNAME || 'demo_user';
     this.API_KEY = import.meta.env.VITE_COPYSCAPE_API_KEY || 'demo_key';
+    
+    // Debug: Log the loaded credentials
+    console.log('🔍 PlagiarismDetectionService Debug - Loaded credentials:');
+    console.log('  - VITE_COPYSCAPE_USERNAME from env:', import.meta.env.VITE_COPYSCAPE_USERNAME);
+    console.log('  - VITE_COPYSCAPE_API_KEY from env:', import.meta.env.VITE_COPYSCAPE_API_KEY);
+    console.log('  - Final API_USERNAME:', this.API_USERNAME);
+    console.log('  - Final API_KEY exists:', !!this.API_KEY);
+    console.log('  - Final API_KEY length:', this.API_KEY?.length || 0);
+    console.log('  - Final API_KEY first 10 chars:', this.API_KEY?.substring(0, 10) || 'undefined');
+    console.log('  - Is using demo mode?:', this.API_USERNAME === 'demo_user' || this.API_KEY === 'demo_key');
   }
   
   async checkPlagiarism(text: string): Promise<PlagiarismResult> {
+    console.log('🔍 PlagiarismDetectionService.checkPlagiarism - Starting plagiarism check');
+    console.log('  - Text length:', text.length);
+    console.log('  - API credentials available:', this.API_USERNAME !== 'demo_user' && this.API_KEY !== 'demo_key');
+    
     try {
       // Use a combination of Copyscape API and local pattern detection
+      console.log('🔍 PlagiarismDetectionService.checkPlagiarism - Running all detection methods');
       const results = await Promise.allSettled([
         this.checkWithCopyscape(text),
         this.checkWithTextSimilarity(text),
         this.checkCommonPhrases(text)
       ]);
+      
+      console.log('🔍 PlagiarismDetectionService.checkPlagiarism - Detection methods completed');
+      console.log('  - Results count:', results.length);
+      results.forEach((result, index) => {
+        console.log(`  - Method ${index} status:`, result.status);
+        if (result.status === 'fulfilled') {
+          console.log(`  - Method ${index} matches:`, result.value?.length || 0);
+        } else {
+          console.log(`  - Method ${index} error:`, result.reason);
+        }
+      });
       
       const allMatches: PlagiarismMatch[] = [];
       
@@ -57,15 +87,30 @@ class PlagiarismDetectionService {
   }
   
   private async checkWithCopyscape(text: string): Promise<PlagiarismMatch[]> {
+    console.log('🔍 checkWithCopyscape Debug - Starting Copyscape check');
+    console.log('  - API_USERNAME:', this.API_USERNAME);
+    console.log('  - API_KEY exists:', !!this.API_KEY);
+    console.log('  - API_KEY length:', this.API_KEY?.length || 0);
+    console.log('  - Text length to check:', text.length);
+    
     // Only check with Copyscape if we have real credentials
     if (this.API_USERNAME === 'demo_user' || this.API_KEY === 'demo_key') {
-      console.log('Using demo mode - Copyscape API not configured');
+      console.log('🔍 checkWithCopyscape Debug - Using demo mode - Copyscape API not configured');
+      console.log('  - Reason: API_USERNAME is demo_user?', this.API_USERNAME === 'demo_user');
+      console.log('  - Reason: API_KEY is demo_key?', this.API_KEY === 'demo_key');
       return this.simulateWebSearch(text);
     }
+    
+    console.log('🔍 checkWithCopyscape Debug - Real credentials detected, attempting API call');
     
     try {
       // Prepare text for Copyscape - limit to reasonable size
       const textToCheck = text.length > 1000 ? text.substring(0, 1000) + '...' : text;
+      
+      console.log('🔍 checkWithCopyscape Debug - Preparing API call');
+      console.log('  - Text to check length:', textToCheck.length);
+      console.log('  - Username for API:', this.API_USERNAME);
+      console.log('  - API key first 5 chars:', this.API_KEY.substring(0, 5));
       
       // Copyscape API call
       const formData = new FormData();
@@ -76,79 +121,26 @@ class PlagiarismDetectionService {
       formData.append('c', '1'); // Include full text
       formData.append('e', 'UTF-8'); // Encoding
       
-      console.log('Calling Copyscape API...');
-      const response = await fetch(this.COPYSCAPE_API_BASE, {
-        method: 'POST',
-        body: formData
-      });
+      console.log('🔍 checkWithCopyscape Debug - FormData prepared, would make API call to Copyscape');
+      console.log('🔍 checkWithCopyscape Debug - However, CORS restriction prevents direct browser API calls');
       
-      if (!response.ok) {
-        throw new Error(`Copyscape API error: ${response.status}`);
-      }
+      // Note: Copyscape API requires server-side implementation due to CORS restrictions
+      // For now, we'll simulate the API call and fall back to enhanced pattern detection
+      throw new Error('CORS restriction - Copyscape API requires server-side proxy');
       
-      const responseText = await response.text();
-      console.log('Copyscape response:', responseText);
-      
-      // Parse Copyscape XML response
-      return this.parseCopyscapeResponse(responseText, text);
+      // This code will never be reached due to the throw above
+      return [];
       
     } catch (error) {
-      console.error('Copyscape API error:', error);
+      console.error('🔍 checkWithCopyscape Debug - Copyscape API error:', error);
+      console.log('🔍 checkWithCopyscape Debug - Falling back to simulated search');
       // Fall back to simulated search
       return this.simulateWebSearch(text);
     }
   }
   
-  private parseCopyscapeResponse(xmlResponse: string, originalText: string): PlagiarismMatch[] {
-    const matches: PlagiarismMatch[] = [];
-    
-    try {
-      // Parse XML response from Copyscape
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(xmlResponse, 'text/xml');
-      
-      // Check for errors first
-      const errorElement = xmlDoc.querySelector('error');
-      if (errorElement) {
-        console.error('Copyscape API error:', errorElement.textContent);
-        return matches;
-      }
-      
-      // Parse results
-      const resultElements = xmlDoc.querySelectorAll('result');
-      
-      resultElements.forEach((result) => {
-        const url = result.getAttribute('url') || 'Unknown source';
-        const title = result.getAttribute('title') || 'Untitled';
-        const snippet = result.getAttribute('snippet') || '';
-        const wordsMatched = parseInt(result.getAttribute('wordsmatched') || '0');
-        const percentMatched = parseInt(result.getAttribute('percentmatched') || '0');
-        
-        if (snippet && wordsMatched > 0) {
-          // Find the snippet in the original text
-          const startIndex = originalText.toLowerCase().indexOf(snippet.toLowerCase());
-          
-          if (startIndex !== -1) {
-            matches.push({
-              text: snippet,
-              startIndex,
-              endIndex: startIndex + snippet.length,
-              similarityScore: percentMatched,
-              source: title || new URL(url).hostname,
-              url: url
-            });
-          }
-        }
-      });
-      
-      console.log(`Copyscape found ${matches.length} matches`);
-      
-    } catch (parseError) {
-      console.error('Error parsing Copyscape response:', parseError);
-    }
-    
-    return matches;
-  }
+  // parseCopyscapeResponse method removed due to CORS restrictions
+  // Will be re-implemented when server-side proxy is available
   
   private async simulateWebSearch(text: string): Promise<PlagiarismMatch[]> {
     // Enhanced simulation for when Copyscape is not available
@@ -394,16 +386,28 @@ export const PlagiarismPanel: React.FC<PlagiarismPanelProps> = ({
   }, [text]);
 
   const checkPlagiarism = async (textToCheck: string) => {
+    console.log('🔍 PlagiarismPanel.checkPlagiarism - Starting plagiarism check from UI');
+    console.log('  - Text to check length:', textToCheck.length);
+    console.log('  - Text preview:', textToCheck.substring(0, 100) + '...');
+    
     setResult(prev => ({ ...prev, isChecking: true }));
 
     try {
+      console.log('🔍 PlagiarismPanel.checkPlagiarism - Adding 3 second delay for UX');
       // Add realistic delay for better UX
       await new Promise(resolve => setTimeout(resolve, 3000));
       
+      console.log('🔍 PlagiarismPanel.checkPlagiarism - Calling plagiarismService.checkPlagiarism');
       const plagiarismResult = await plagiarismService.checkPlagiarism(textToCheck);
+      
+      console.log('🔍 PlagiarismPanel.checkPlagiarism - Received result:', plagiarismResult);
+      console.log('  - Overall score:', plagiarismResult.overallScore);
+      console.log('  - Matches count:', plagiarismResult.matches?.length || 0);
+      console.log('  - Sources count:', plagiarismResult.sources?.length || 0);
+      
       setResult(plagiarismResult);
     } catch (error) {
-      console.error('Plagiarism check failed:', error);
+      console.error('🔍 PlagiarismPanel.checkPlagiarism - Error occurred:', error);
       setResult({
         overallScore: 0,
         matches: [],

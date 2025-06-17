@@ -1,7 +1,7 @@
 import type { GrammarSuggestion } from '../store/useDocumentStore';
 import type { WritingSettings } from '../types';
 
-const OPENAI_API_KEY = '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';
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 
 interface OpenAISuggestion {
   original: string;
