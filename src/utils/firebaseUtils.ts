@@ -17,7 +17,7 @@ import {
   getDoc,
   query, 
   where, 
-  orderBy 
+  orderBy
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import type { Document } from '../store/useDocumentStore';

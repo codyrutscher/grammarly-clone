@@ -18,6 +18,7 @@ interface EditableTitleProps {
 function EditableTitle({ title, onSave, isActive }: EditableTitleProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(title);
+  const [showEditHint, setShowEditHint] = useState(false);
   const { isDarkMode } = useDarkModeStore();
 
   const handleDoubleClick = () => {
@@ -49,10 +50,10 @@ function EditableTitle({ title, onSave, isActive }: EditableTitleProps) {
         onChange={(e) => setEditValue(e.target.value)}
         onBlur={handleSave}
         onKeyDown={handleKeyPress}
-        className={`w-full text-sm font-medium border rounded px-1 py-0.5 transition-colors ${
+        className={`w-full text-sm font-medium border rounded px-2 py-1 transition-colors ${
           isDarkMode 
-            ? 'bg-gray-700 text-white border-blue-400' 
-            : 'bg-white text-gray-900 border-grammarly-blue'
+            ? 'bg-gray-700 text-white border-blue-400 focus:border-blue-300' 
+            : 'bg-white text-gray-900 border-grammarly-blue focus:border-blue-500'
         }`}
         autoFocus
       />
@@ -60,19 +61,56 @@ function EditableTitle({ title, onSave, isActive }: EditableTitleProps) {
   }
 
   return (
-    <h3 
-      className={`font-medium text-sm truncate cursor-pointer transition-colors ${
-        isActive 
-          ? 'text-white' 
-          : isDarkMode 
-            ? 'text-gray-200' 
-            : 'text-gray-900'
-      }`}
-      onDoubleClick={handleDoubleClick}
-      title="Double-click to edit"
+    <div 
+      className="relative group flex-1"
+      onMouseEnter={() => setShowEditHint(true)}
+      onMouseLeave={() => setShowEditHint(false)}
     >
-      {title}
-    </h3>
+      <h3 
+        className={`font-medium text-sm truncate cursor-pointer transition-all duration-200 pr-6 ${
+          isActive 
+            ? 'text-white' 
+            : isDarkMode 
+              ? 'text-gray-200 group-hover:text-white' 
+              : 'text-gray-900 group-hover:text-blue-600'
+        }`}
+        onDoubleClick={handleDoubleClick}
+        title="Double-click to rename"
+      >
+        {title}
+      </h3>
+      
+      {/* Edit icon - shows on hover */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handleDoubleClick();
+        }}
+        className={`absolute right-0 top-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-all duration-200 ${
+          isActive
+            ? 'text-white hover:bg-white/20'
+            : isDarkMode
+              ? 'text-gray-400 hover:text-white hover:bg-gray-600'
+              : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+        }`}
+        title="Rename document"
+      >
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+      </button>
+      
+      {/* Tooltip hint */}
+      {showEditHint && !isEditing && (
+        <div className={`absolute -top-8 left-0 px-2 py-1 text-xs rounded shadow-lg z-10 whitespace-nowrap ${
+          isDarkMode 
+            ? 'bg-gray-700 text-gray-200 border border-gray-600' 
+            : 'bg-gray-900 text-white'
+        }`}>
+          Double-click or click ✏️ to rename
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -384,11 +422,23 @@ export function DocumentSidebar() {
                           👥 Shared
                         </span>
                       )}
-                      <EditableTitle
-                        title={doc.isShared ? doc.title : doc.title}
-                        onSave={(newTitle) => !doc.isShared && handleUpdateTitle(doc.id, newTitle)}
-                        isActive={currentDocument?.id === doc.id}
-                      />
+                      {doc.isShared ? (
+                        <h3 className={`font-medium text-sm truncate ${
+                          currentDocument?.id === doc.id 
+                            ? 'text-white' 
+                            : isDarkMode 
+                              ? 'text-gray-200' 
+                              : 'text-gray-900'
+                        }`}>
+                          {doc.title}
+                        </h3>
+                      ) : (
+                        <EditableTitle
+                          title={doc.title}
+                          onSave={(newTitle) => handleUpdateTitle(doc.id, newTitle)}
+                          isActive={currentDocument?.id === doc.id}
+                        />
+                      )}
                     </div>
                     <div className="flex items-center space-x-1 sm:space-x-2 mt-1">
                       <p className={`text-xs transition-colors ${

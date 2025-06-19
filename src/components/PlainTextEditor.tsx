@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useDarkModeStore } from '../store/useDarkModeStore';
+import { exportDocumentAsPDF } from '../utils/exportUtils';
 import type { GrammarSuggestion } from '../store/useDocumentStore';
 
 interface PlainTextEditorProps {
@@ -123,7 +124,11 @@ export function PlainTextEditor({
   }, []);
 
   const exportToPDF = useCallback(() => {
-    window.print();
+    if (!textareaRef.current) return;
+    
+    const title = 'StudyWrite Document';
+    const content = textareaRef.current.value;
+    exportDocumentAsPDF(title, content);
   }, []);
 
   const exportToGoogleDocs = useCallback(() => {

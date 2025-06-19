@@ -7,7 +7,8 @@ import { DarkModeToggle } from './components/DarkModeToggle'
 import { useDarkModeStore } from './store/useDarkModeStore'
 import { useProfileStore } from './store/useProfileStore'
 import { useTeamStore } from './store/useTeamStore'
-import { AuthModal } from './components/AuthModal'
+import { SignupPage } from './components/SignupPage'
+import { LoginPage } from './components/LoginPage'
 import { DocumentSidebar } from './components/DocumentSidebar'
 import { TextEditor } from './components/TextEditor'
 import { AnalysisPanel } from './components/AnalysisPanel'
@@ -17,6 +18,7 @@ import { WritingSettingsPanel } from './components/WritingSettingsPanel'
 import { TeamManagementPanel } from './components/TeamManagementPanel'
 import { DocumentSharingPanel } from './components/DocumentSharingPanel'
 import { PricingPanel } from './components/PricingPanel'
+import { PricingPage } from './components/PricingPage'
 import { VideoModal } from './components/VideoModal'
 import { UpgradePrompt } from './components/UpgradePrompt'
 import { useSubscriptionStore } from './store/useSubscriptionStore'
@@ -27,6 +29,7 @@ import { IntegrationsPage } from './components/IntegrationsPage'
 import { HelpCenterPage } from './components/HelpCenterPage'
 import { PrivacyPolicyPage } from './components/PrivacyPolicyPage'
 import { TermsOfServicePage } from './components/TermsOfServicePage'
+import { CitationPanel } from './components/CitationPanel'
 
 function App() {
   useAuthProvider()
@@ -61,7 +64,8 @@ function App() {
   
   // Debug logging
   console.log('App state:', { user: !!user, profile: !!profile, profileLoading })
-  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showSignupPage, setShowSignupPage] = useState(false)
+  const [showLoginPage, setShowLoginPage] = useState(false)
   const [showAnalysisPanel, setShowAnalysisPanel] = useState(false)
   const [showAIChatPanel, setShowAIChatPanel] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
@@ -69,6 +73,7 @@ function App() {
   const [showTeamManagement, setShowTeamManagement] = useState(false)
   const [showDocumentSharing, setShowDocumentSharing] = useState(false)
   const [showPricing, setShowPricing] = useState(false)
+  const [showPricingPage, setShowPricingPage] = useState(false)
   const [showVideoModal, setShowVideoModal] = useState(false)
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
   const [showFeaturesPage, setShowFeaturesPage] = useState(false)
@@ -76,6 +81,7 @@ function App() {
   const [showHelpCenterPage, setShowHelpCenterPage] = useState(false)
   const [showPrivacyPolicyPage, setShowPrivacyPolicyPage] = useState(false)
   const [showTermsOfServicePage, setShowTermsOfServicePage] = useState(false)
+  const [showCitationPanel, setShowCitationPanel] = useState(false)
   
   const { saveStatus } = useAutoSave()
 
@@ -140,7 +146,7 @@ function App() {
               <div className="flex items-center space-x-4">
                 <DarkModeToggle size="sm" />
                 <button
-                  onClick={() => setShowAuthModal(true)}
+                  onClick={() => setShowLoginPage(true)}
                   className="bg-gradient-to-r from-grammarly-blue to-purple-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
                   ✨ Sign In
@@ -175,7 +181,7 @@ function App() {
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-8">
                 <button
-                  onClick={() => setShowAuthModal(true)}
+                  onClick={() => setShowSignupPage(true)}
                   className="group relative px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl text-lg font-semibold transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/25 hover:scale-105"
                 >
                   <span className="relative z-10 flex items-center gap-2">
@@ -204,9 +210,7 @@ function App() {
                 </button>
               </div>
               
-              <div className={`text-sm transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                Free forever • No credit card required • Join 10,000+ students
-              </div>
+              
             </div>
           </div>
         </div>
@@ -286,6 +290,38 @@ function App() {
                 </div>
                 <h3 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Context Aware</h3>
                 <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>AI understands your writing context for smarter suggestions</p>
+              </div>
+              
+              <div className="text-center p-6">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <h3 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Team Collaboration</h3>
+                <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Share documents and collaborate with team members in real-time</p>
+              </div>
+              
+              <div className="text-center p-6">
+                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Export Anywhere</h3>
+                <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Export to Word, PDF, or Google Docs with one click</p>
+              </div>
+              
+              <div className="text-center p-6">
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-4 ${
+                  isDarkMode ? 'bg-orange-900/50' : 'bg-orange-100'
+                }`}>
+                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C20.168 18.477 18.582 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                </div>
+                <h3 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Citation Generator</h3>
+                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Manually create professional citations in APA, MLA, Chicago, and Harvard formats</p>
               </div>
             </div>
           </div>
@@ -548,7 +584,7 @@ function App() {
                 <h4 className="text-lg font-semibold mb-4">Product</h4>
                 <ul className="space-y-2 text-gray-400">
                   <li><button onClick={() => setShowFeaturesPage(true)} className="hover:text-white transition-colors text-left">Features</button></li>
-                  <li><button onClick={() => setShowAuthModal(true)} className="hover:text-white transition-colors text-left">Pricing</button></li>
+                  <li><button onClick={() => setShowPricingPage(true)} className="hover:text-white transition-colors text-left">Pricing</button></li>
                   
                 </ul>
               </div>
@@ -569,14 +605,32 @@ function App() {
           </div>
         </footer>
 
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
+        <SignupPage
+          isOpen={showSignupPage}
+          onClose={() => setShowSignupPage(false)}
+          onSwitchToLogin={() => {
+            setShowSignupPage(false);
+            setShowLoginPage(true);
+          }}
+        />
+
+        <LoginPage
+          isOpen={showLoginPage}
+          onClose={() => setShowLoginPage(false)}
+          onSwitchToSignup={() => {
+            setShowLoginPage(false);
+            setShowSignupPage(true);
+          }}
         />
 
         <PricingPanel
           isOpen={showPricing}
           onClose={() => setShowPricing(false)}
+        />
+
+        <PricingPage
+          isOpen={showPricingPage}
+          onClose={() => setShowPricingPage(false)}
         />
 
         <VideoModal
@@ -723,6 +777,15 @@ function App() {
                 <span className="sm:hidden">📊</span>
               </button>
               
+              {/* Citation Button */}
+              <button
+                onClick={() => setShowCitationPanel(true)}
+                className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-2 sm:px-4 py-2 text-xs sm:text-sm rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-200 shadow-md border border-orange-400"
+              >
+                <span className="hidden sm:inline">📚 Citations</span>
+                <span className="sm:hidden">📚</span>
+              </button>
+              
               {/* Subscription Management for Mobile */}
               {subscriptionType === 'premium' && (
                 <button
@@ -751,13 +814,14 @@ function App() {
               {/* Logout Button */}
               <button
                 onClick={handleLogout}
-                className={`p-2 rounded-lg transition-colors border shadow-sm ${
+                className={`px-3 py-2 rounded-lg transition-colors border shadow-sm text-xs sm:text-sm font-medium ${
                   isDarkMode 
-                    ? 'text-gray-300 hover:bg-gray-700 hover:text-red-400 border-gray-600 bg-gray-700/50' 
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-red-600 border-gray-300 bg-gray-50'
+                    ? 'text-gray-300 hover:bg-red-900/50 hover:text-red-400 border-gray-600 bg-gray-700/50 hover:border-red-600' 
+                    : 'text-gray-600 hover:bg-red-50 hover:text-red-600 border-gray-300 bg-gray-50 hover:border-red-300'
                 }`}
               >
-                <span className="text-lg">🚪</span>
+                <span className="hidden sm:inline">Logout</span>
+                <span className="sm:hidden">Exit</span>
               </button>
             </div>
           </div>
@@ -865,6 +929,12 @@ function App() {
           setShowUpgradePrompt(false);
           setShowPricing(true);
         }}
+      />
+
+      {/* Citation Panel */}
+      <CitationPanel
+        isOpen={showCitationPanel}
+        onClose={() => setShowCitationPanel(false)}
       />
     </div>
   )

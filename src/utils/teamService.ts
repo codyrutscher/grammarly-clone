@@ -529,4 +529,97 @@ Your team administrator will provide you with your login credentials.`,
       error: error.message || 'Failed to create team member account' 
     }
   }
+}
+
+// Helper function to check if user exists by email
+export async function checkUserExistsByEmail(email: string): Promise<{ exists: boolean; userId?: string; displayName?: string }> {
+  try {
+    // Check in profiles collection
+    const profilesQuery = query(
+      collection(db, 'profiles'),
+      where('email', '==', email)
+    )
+    const profileSnapshot = await getDocs(profilesQuery)
+    
+    if (!profileSnapshot.empty) {
+      const profile = profileSnapshot.docs[0].data()
+      return {
+        exists: true,
+        userId: profile.userId,
+        displayName: profile.displayName || profile.firstName
+      }
+    }
+    
+    return { exists: false }
+  } catch (error) {
+    console.error('Error checking user existence:', error)
+    return { exists: false }
+  }
+}
+
+// Enhanced function to invite existing users or create new ones
+export async function inviteUserToTeam(
+  teamId: string,
+  email: string,
+  role: TeamRole,
+  invitedBy: string,
+  displayName?: string
+): Promise<{ success: boolean; isExistingUser: boolean; tempPassword?: string; error?: string; invitationId?: string }> {
+  try {
+    // First check if user already exists
+    const userCheck = await checkUserExistsByEmail(email)
+    
+    if (userCheck.exists) {
+      // User exists - create invitation
+      const teamRef = doc(db, 'teams', teamId)
+      const teamDoc = await getDoc(teamRef)
+      
+      if (!teamDoc.exists()) {
+        throw new Error('Team not found')
+      }
+      
+      const team = teamDoc.data() as Team
+      
+      // Check if user is already a team member
+      const isAlreadyMember = team.members.some(member => member.userId === userCheck.userId)
+      if (isAlreadyMember) {
+        return {
+          success: false,
+          isExistingUser: true,
+          error: 'User is already a member of this team'
+        }
+      }
+      
+      // Create invitation
+      const invitation = await inviteTeamMember(
+        teamId,
+        team.name,
+        invitedBy,
+        email,
+        role
+      )
+      
+      return {
+        success: true,
+        isExistingUser: true,
+        invitationId: invitation.id
+      }
+    } else {
+      // User doesn't exist - create new account
+      const result = await createTeamMemberWithCredentials(teamId, email, role, displayName)
+      return {
+        success: result.success,
+        isExistingUser: false,
+        tempPassword: result.tempPassword,
+        error: result.error
+      }
+    }
+  } catch (error: any) {
+    console.error('Error inviting user to team:', error)
+    return {
+      success: false,
+      isExistingUser: false,
+      error: error.message || 'Failed to invite user'
+    }
+  }
 } 

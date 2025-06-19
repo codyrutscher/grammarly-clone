@@ -276,7 +276,7 @@ export function AIChatPanel({ isOpen, onClose }: AIChatPanelProps) {
           )}
 
           {activeTab === 'improve' && (
-            <div className="p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
               <div className="text-center mb-6">
                 <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-3">
                   <span className="text-2xl">✨</span>
@@ -355,7 +355,7 @@ export function AIChatPanel({ isOpen, onClose }: AIChatPanelProps) {
           )}
 
           {activeTab === 'generate' && (
-            <div className="p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
               <div className="text-center mb-6">
                 <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
                   <span className="text-2xl">🎯</span>

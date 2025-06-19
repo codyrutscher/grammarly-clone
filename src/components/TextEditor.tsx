@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDocumentStore } from '../store/useDocumentStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { useProfileStore } from '../store/useProfileStore';
 import { applySuggestion, getTextStats } from '../utils/grammarChecker';
 import { checkTextWithAI } from '../utils/aiGrammarChecker';
+import { createDocument } from '../utils/firebaseUtils';
 import type { GrammarSuggestion } from '../store/useDocumentStore';
 import type { WritingSettings } from '../types';
 import { defaultWritingSettings } from '../store/useProfileStore';
@@ -13,17 +15,20 @@ import { PlainTextEditor } from './PlainTextEditor';
 import { useDarkModeStore } from '../store/useDarkModeStore';
 
 export function TextEditor() {
-  const { content, setContent, suggestions, setSuggestions, currentDocument } = useDocumentStore();
+  const { user } = useAuthStore();
+  const { content, setContent, suggestions, setSuggestions, currentDocument, addDocument, setCurrentDocument } = useDocumentStore();
   const { profile } = useProfileStore();
   const { isDarkMode } = useDarkModeStore();
   const [selectedSuggestion, setSelectedSuggestion] = useState<GrammarSuggestion | null>(null);
   const [showStats, setShowStats] = useState(false);
   const [highlightedSuggestionId, setHighlightedSuggestionId] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [suggestionsEnabled, setSuggestionsEnabled] = useState(true);
   const [currentWritingSettings, setCurrentWritingSettings] = useState<WritingSettings>(defaultWritingSettings);
   const [showVoiceNotes, setShowVoiceNotes] = useState(false);
   const [showPlagiarismCheck, setShowPlagiarismCheck] = useState(false);
+  const [isCreatingDocument, setIsCreatingDocument] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [hasGeneratedSuggestions, setHasGeneratedSuggestions] = useState(false);
 
   // Check if current document is editable - all shared documents have full access
   const isDocumentEditable = currentDocument && (!currentDocument.isShared || true);
@@ -47,39 +52,32 @@ export function TextEditor() {
     }
   }, [profile]);
 
-  // Debounced analysis function - AI only with writing settings
+  // AI analysis function - now purely manual
   const analyzeText = useCallback(
-    debounce(async (text: string) => {
+    async (text: string) => {
       if (!text || text.trim().length === 0 || !suggestionsEnabled) {
         setSuggestions([]);
+        setHasGeneratedSuggestions(false);
         return;
       }
 
       setIsAnalyzing(true);
-      console.log('Starting AI text analysis with settings:', currentWritingSettings);
+      console.log('Starting manual AI text analysis with settings:', currentWritingSettings);
 
       try {
         const newSuggestions = await checkTextWithAI(text, currentWritingSettings);
         console.log('AI analysis complete:', newSuggestions.length, 'suggestions');
         setSuggestions(newSuggestions);
+        setHasGeneratedSuggestions(true);
       } catch (error) {
         console.error('Error analyzing text:', error);
         setSuggestions([]);
       } finally {
         setIsAnalyzing(false);
       }
-    }, 2000),
+    },
     [setSuggestions, suggestionsEnabled, currentWritingSettings]
   );
-
-  // Update suggestions when content, document, or settings change
-  useEffect(() => {
-    if (content) {
-      analyzeText(content);
-    } else {
-      setSuggestions([]);
-    }
-  }, [content, analyzeText, currentDocument?.id, currentWritingSettings]);
 
   // Update content when currentDocument changes
   useEffect(() => {
@@ -114,8 +112,28 @@ export function TextEditor() {
       
       console.log('Setting plain text content:', plainText);
       setContent(plainText);
+      setSuggestions([]); // Clear suggestions when switching documents
+      setHasGeneratedSuggestions(false); // Reset suggestion state for new document
     }
   }, [currentDocument, setContent]);
+
+  const handleCreateNewDocument = async () => {
+    if (!user) return;
+    
+    setIsCreatingDocument(true);
+    try {
+      const result = await createDocument(user.uid, 'Untitled Document');
+      if (result.document) {
+        addDocument(result.document);
+        setCurrentDocument(result.document);
+        setContent('');
+      }
+    } catch (error) {
+      console.error('Error creating document:', error);
+    } finally {
+      setIsCreatingDocument(false);
+    }
+  };
 
   const handleSuggestionClick = (suggestion: GrammarSuggestion) => {
     setSelectedSuggestion(suggestion);
@@ -127,7 +145,6 @@ export function TextEditor() {
     console.log('Suggestion:', suggestion);
     console.log('Current content before applying:', content);
     console.log('isDocumentEditable:', isDocumentEditable);
-    console.log('Document:', document);
     
     // Check if document is editable
     if (!isDocumentEditable) {
@@ -155,9 +172,20 @@ export function TextEditor() {
       setSelectedSuggestion(null);
       setHighlightedSuggestionId(null);
       
+      // Keep the suggestion state as "generated" to prevent auto-regeneration
+      // User will need to manually click "Generate Suggestions" for new analysis
+      
       console.log('Successfully applied suggestion and updated state');
     } else {
       console.warn('Suggestion did not change the content');
+    }
+  };
+
+  const handleGenerateNewSuggestions = () => {
+    if (content && content.trim().length > 0) {
+      console.log('Manually generating new suggestions');
+      setHasGeneratedSuggestions(false); // Reset flag to allow new analysis
+      analyzeText(content); // Force analysis
     }
   };
 
@@ -186,6 +214,9 @@ export function TextEditor() {
       // Insert transcript at the end of current content
       const newContent = content + (content ? ' ' : '') + transcript;
       setContent(newContent);
+      // Clear suggestions when new content is added - user must manually regenerate
+      setSuggestions([]);
+      setHasGeneratedSuggestions(false);
     }
     
     setShowVoiceNotes(false);
@@ -195,15 +226,21 @@ export function TextEditor() {
   const errorCount = suggestions.filter(s => s.type === 'spelling' || s.type === 'grammar').length;
   const suggestionCount = suggestions.filter(s => s.type === 'style' || s.type === 'readability').length;
 
-  // Handle plain text content changes
+  // Handle plain text content changes - this is user input
   const handlePlainTextChange = (newPlainContent: string) => {
     console.log('Plain text change:', {
       newContent: newPlainContent,
       contentLines: newPlainContent.split('\n').length
     });
     
-    // Update the plain text content for AI analysis
+    // Update the plain text content
     setContent(newPlainContent);
+    
+    // Clear suggestions when content changes - user must manually regenerate
+    if (newPlainContent !== content) {
+      setSuggestions([]);
+      setHasGeneratedSuggestions(false);
+    }
     
     // Update the document store with plain text content
     const { updateDocument } = useDocumentStore.getState();
@@ -214,6 +251,53 @@ export function TextEditor() {
       });
     }
   };
+
+  // If no document is selected, show the "Create New Document" interface
+  if (!currentDocument) {
+    return (
+      <div className={`flex-1 flex items-center justify-center transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className={`w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center mb-6 border-4 ${
+            isDarkMode ? 'border-gray-600' : 'border-gray-200'
+          }`}>
+            <span className="text-4xl">📝</span>
+          </div>
+          
+          <h2 className={`text-2xl font-bold mb-4 transition-colors ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            Ready to start writing?
+          </h2>
+          
+          <p className={`text-lg mb-8 transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+            Create your first document to begin writing with AI-powered assistance.
+          </p>
+          
+          <button
+            onClick={handleCreateNewDocument}
+            disabled={isCreatingDocument}
+            className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-4 rounded-xl text-lg font-semibold transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/25 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            {isCreatingDocument ? (
+              <div className="flex items-center gap-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                <span>Creating...</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <span>📄 Create New Document</span>
+                <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </div>
+            )}
+          </button>
+          
+          <div className={`mt-6 text-sm transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            Or select an existing document from the sidebar
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex-1 flex transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -579,180 +663,200 @@ export function TextEditor() {
       </div>
 
       {/* Suggestions Sidebar */}
-      {(suggestions.length > 0 || !suggestionsEnabled) && (
-        <div className={`w-full lg:w-80 border-l-2 flex flex-col shadow-xl transition-colors ${
+      <div className={`w-full lg:w-80 border-l-2 flex flex-col shadow-xl transition-colors ${
+        isDarkMode 
+          ? 'bg-gray-800 border-gray-600' 
+          : 'bg-white border-gray-300'
+      }`}>
+        <div className={`p-4 border-b-2 transition-colors ${
           isDarkMode 
-            ? 'bg-gray-800 border-gray-600' 
-            : 'bg-white border-gray-300'
+            ? 'border-gray-600 bg-gray-700/50' 
+            : 'border-gray-300 bg-gray-50/50'
         }`}>
-          <div className={`p-4 border-b-2 transition-colors ${
-            isDarkMode 
-              ? 'border-gray-600 bg-gray-700/50' 
-              : 'border-gray-300 bg-gray-50/50'
+          <div className={`p-3 rounded-lg border ${
+            isDarkMode ? 'border-gray-600 bg-gray-700/30' : 'border-gray-200 bg-white/50'
           }`}>
-            <div className={`p-3 rounded-lg border ${
-              isDarkMode ? 'border-gray-600 bg-gray-700/30' : 'border-gray-200 bg-white/50'
-            }`}>
+            <div className="flex items-center justify-between">
               <h3 className={`text-lg font-semibold flex items-center transition-colors ${
                 isDarkMode ? 'text-white' : 'text-gray-700'
               }`}>
                 <span className="text-xl mr-2">🤖</span>
                 AI Writing Assistant
               </h3>
-              <p className={`text-sm mt-1 transition-colors ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-600'
-              }`}>
-                {!suggestionsEnabled ? (
-                  <span className={`transition-colors ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`}>AI suggestions are turned off</span>
-                ) : isAnalyzing ? (
-                  <span className="flex items-center">
-                    <div className={`animate-spin rounded-full h-3 w-3 border-2 border-t-transparent mr-2 ${
-                      isDarkMode ? 'border-blue-400' : 'border-blue-600'
-                    }`}></div>
-                    Analyzing text...
-                  </span>
-                ) : (
-                  `${suggestions.length} suggestion${suggestions.length !== 1 ? 's' : ''} found`
-                )}
-              </p>
+              
+              {suggestionsEnabled && content.trim() && (
+                <button
+                  onClick={handleGenerateNewSuggestions}
+                  disabled={isAnalyzing}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isDarkMode 
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600 border-blue-500' 
+                      : 'bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600 border-blue-400'
+                  }`}
+                  title="Generate new AI suggestions for current text"
+                >
+                  {isAnalyzing ? '⏳ Analyzing...' : '✨ Generate Suggestions'}
+                </button>
+              )}
             </div>
-            {suggestionsEnabled && (
-              <div className={`mt-2 text-xs p-2 rounded border transition-colors ${
+            
+            {!suggestionsEnabled && (
+              <div className={`mt-3 p-3 rounded-lg border transition-colors ${
                 isDarkMode 
-                  ? 'text-blue-300 bg-blue-900/30 border-blue-600' 
-                  : 'text-blue-600 bg-blue-50 border-blue-200'
+                  ? 'bg-yellow-900/30 border-yellow-600' 
+                  : 'bg-yellow-50 border-yellow-200'
               }`}>
-                💡 Powered by OpenAI for intelligent writing assistance
+                <p className={`text-sm transition-colors ${
+                  isDarkMode ? 'text-yellow-300' : 'text-yellow-700'
+                }`}>
+                  AI suggestions are turned off. Enable them to get real-time writing assistance.
+                </p>
               </div>
             )}
           </div>
-          
-          {!suggestionsEnabled ? (
-            <div className="flex-1 flex items-center justify-center p-8">
-              <div className={`text-center p-6 rounded-lg border transition-colors ${
-                isDarkMode ? 'text-gray-400 border-gray-600 bg-gray-700/30' : 'text-gray-500 border-gray-200 bg-gray-50'
-              }`}>
-                <div className="text-4xl mb-3">🤖</div>
-                <p className="text-sm mb-2">AI suggestions are disabled</p>
-                <p className={`text-xs transition-colors ${
-                  isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                }`}>Turn on AI suggestions to get smart writing assistance</p>
-              </div>
+        </div>
+        
+        {!suggestionsEnabled ? (
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className={`text-center p-6 rounded-lg border transition-colors ${
+              isDarkMode ? 'text-gray-400 border-gray-600 bg-gray-700/30' : 'text-gray-500 border-gray-200 bg-gray-50'
+            }`}>
+              <div className="text-4xl mb-3">🤖</div>
+              <p className="text-sm mb-2">AI suggestions are disabled</p>
+              <p className={`text-xs transition-colors ${
+                isDarkMode ? 'text-gray-500' : 'text-gray-400'
+              }`}>Turn on AI suggestions to get smart writing assistance</p>
             </div>
-          ) : suggestions.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center p-8">
-              <div className={`text-center p-6 rounded-lg border transition-colors ${
-                isDarkMode ? 'text-gray-400 border-gray-600 bg-gray-700/30' : 'text-gray-500 border-gray-200 bg-gray-50'
+          </div>
+        ) : suggestions.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className={`text-center p-6 rounded-lg border transition-colors ${
+              isDarkMode ? 'text-gray-400 border-gray-600 bg-gray-700/30' : 'text-gray-500 border-gray-200 bg-gray-50'
+            }`}>
+              <div className="text-4xl mb-3">✨</div>
+              <p className="text-sm mb-2">
+                {content.trim() 
+                  ? hasGeneratedSuggestions 
+                    ? 'Great writing!' 
+                    : isAnalyzing 
+                      ? 'Analyzing your text...' 
+                      : 'Click "Generate Suggestions" to analyze your text'
+                  : 'Start typing to get AI suggestions'
+                }
+              </p>
+              <p className={`text-xs transition-colors ${
+                isDarkMode ? 'text-gray-500' : 'text-gray-400'
               }`}>
-                <div className="text-4xl mb-3">✨</div>
-                <p className="text-sm mb-2">{content.trim() ? 'Great writing!' : 'Start typing to get AI suggestions'}</p>
-                <p className={`text-xs transition-colors ${
-                  isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                }`}>{content.trim() ? 'No improvements needed' : 'AI will analyze your text as you write'}</p>
-              </div>
+                {content.trim() 
+                  ? hasGeneratedSuggestions 
+                    ? 'No improvements needed' 
+                    : 'AI will provide writing suggestions and improvements'
+                  : 'AI will analyze your text as you write'
+                }
+              </p>
             </div>
-          ) : (
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-96 lg:max-h-none">
-              {suggestions.map((suggestion) => (
-                <div
-                  key={suggestion.id}
-                  className={`p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 shadow-md ${
-                    highlightedSuggestionId === suggestion.id 
-                      ? isDarkMode 
-                        ? 'border-blue-400 bg-blue-900/30 shadow-lg' 
-                        : 'border-blue-400 bg-blue-50 shadow-lg'
-                      : isDarkMode 
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 bg-gray-700/30' 
-                        : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50 bg-white/50'
-                  }`}
-                  onClick={() => handleSuggestionClick(suggestion)}
-                  onMouseEnter={() => handleSuggestionHover(suggestion.id)}
-                  onMouseLeave={() => handleSuggestionHover(null)}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      <div className={`w-3 h-3 rounded-full border ${
-                        suggestion.type === 'spelling' || suggestion.type === 'grammar' 
-                          ? 'bg-red-500 border-red-400' 
-                          : suggestion.type === 'style' 
-                          ? 'bg-blue-500 border-blue-400' 
-                          : 'bg-orange-500 border-orange-400'
-                      }`} />
-                      <span className={`text-xs font-semibold uppercase tracking-wide transition-colors ${
-                        isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        {suggestion.type}
-                      </span>
-                      <span className={`text-xs px-2 py-1 rounded-full border ${
-                        suggestion.severity === 'high' 
-                          ? isDarkMode ? 'bg-red-900/50 text-red-300 border-red-600' : 'bg-red-100 text-red-700 border-red-200'
-                          : suggestion.severity === 'medium'
-                          ? isDarkMode ? 'bg-orange-900/50 text-orange-300 border-orange-600' : 'bg-orange-100 text-orange-700 border-orange-200'
-                          : isDarkMode ? 'bg-blue-900/50 text-blue-300 border-blue-600' : 'bg-blue-100 text-blue-700 border-blue-200'
-                      }`}>
-                        {suggestion.severity}
-                      </span>
-                    </div>
-                    
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        dismissSuggestion(suggestion.id);
-                      }}
-                      className={`p-1 rounded border transition-colors ${
-                        isDarkMode ? 'text-gray-400 hover:text-red-400 border-gray-600 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-500 border-gray-300 hover:bg-red-50'
-                      }`}
-                      title="Dismiss suggestion"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  
-                  <div className={`p-2 rounded border mb-2 transition-colors ${
-                    isDarkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'
-                  }`}>
-                    <p className={`text-sm transition-colors ${
-                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-96 lg:max-h-none">
+            {suggestions.map((suggestion) => (
+              <div
+                key={suggestion.id}
+                className={`p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 shadow-md ${
+                  highlightedSuggestionId === suggestion.id 
+                    ? isDarkMode 
+                      ? 'border-blue-400 bg-blue-900/30 shadow-lg' 
+                      : 'border-blue-400 bg-blue-50 shadow-lg'
+                    : isDarkMode 
+                      ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 bg-gray-700/30' 
+                      : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50 bg-white/50'
+                }`}
+                onClick={() => handleSuggestionClick(suggestion)}
+                onMouseEnter={() => handleSuggestionHover(suggestion.id)}
+                onMouseLeave={() => handleSuggestionHover(null)}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-3 h-3 rounded-full border ${
+                      suggestion.type === 'spelling' || suggestion.type === 'grammar' 
+                        ? 'bg-red-500 border-red-400' 
+                        : suggestion.type === 'style' 
+                        ? 'bg-blue-500 border-blue-400' 
+                        : 'bg-orange-500 border-orange-400'
+                    }`} />
+                    <span className={`text-xs font-semibold uppercase tracking-wide transition-colors ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-600'
                     }`}>
-                      {suggestion.message}
-                    </p>
+                      {suggestion.type}
+                    </span>
+                    <span className={`text-xs px-2 py-1 rounded-full border ${
+                      suggestion.severity === 'high' 
+                        ? isDarkMode ? 'bg-red-900/50 text-red-300 border-red-600' : 'bg-red-100 text-red-700 border-red-200'
+                        : suggestion.severity === 'medium'
+                        ? isDarkMode ? 'bg-orange-900/50 text-orange-300 border-orange-600' : 'bg-orange-100 text-orange-700 border-orange-200'
+                        : isDarkMode ? 'bg-blue-900/50 text-blue-300 border-blue-600' : 'bg-blue-100 text-blue-700 border-blue-200'
+                    }`}>
+                      {suggestion.severity}
+                    </span>
                   </div>
                   
-                  <div className={`text-xs p-2 rounded border transition-colors ${
-                    isDarkMode ? 'text-gray-400 bg-gray-800/50 border-gray-600' : 'text-gray-500 bg-white border-gray-200'
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dismissSuggestion(suggestion.id);
+                    }}
+                    className={`p-1 rounded border transition-colors ${
+                      isDarkMode ? 'text-gray-400 hover:text-red-400 border-gray-600 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-500 border-gray-300 hover:bg-red-50'
+                    }`}
+                    title="Dismiss suggestion"
+                  >
+                    ×
+                  </button>
+                </div>
+                
+                <div className={`p-2 rounded border mb-2 transition-colors ${
+                  isDarkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <p className={`text-sm transition-colors ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
                   }`}>
-                    <span className="font-medium">Text:</span> "{suggestion.original}"
-                    {suggestion.suggestion && suggestion.suggestion !== suggestion.original && (
-                      <>
-                        <br />
-                        <span className="font-medium">AI Suggestion:</span> "{suggestion.suggestion}"
-                      </>
-                    )}
-                  </div>
-                  
+                    {suggestion.message}
+                  </p>
+                </div>
+                
+                <div className={`text-xs p-2 rounded border transition-colors ${
+                  isDarkMode ? 'text-gray-400 bg-gray-800/50 border-gray-600' : 'text-gray-500 bg-white border-gray-200'
+                }`}>
+                  <span className="font-medium">Text:</span> "{suggestion.original}"
                   {suggestion.suggestion && suggestion.suggestion !== suggestion.original && (
-                    <button
-                      onClick={(e) => {
-                        console.log('Apply button clicked in sidebar!', e, suggestion);
-                        e.stopPropagation();
-                        applySuggestionClick(suggestion);
-                      }}
-                      disabled={!isDocumentEditable}
-                      className={`mt-3 w-full py-2 px-3 rounded border text-xs font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                        isDarkMode 
-                          ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600 border-blue-500' 
-                          : 'bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600 border-blue-400'
-                      }`}
-                    >
-                      ✨ Apply AI Suggestion
-                    </button>
+                    <>
+                      <br />
+                      <span className="font-medium">AI Suggestion:</span> "{suggestion.suggestion}"
+                    </>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                
+                {suggestion.suggestion && suggestion.suggestion !== suggestion.original && (
+                  <button
+                    onClick={(e) => {
+                      console.log('Apply button clicked in sidebar!', e, suggestion);
+                      e.stopPropagation();
+                      applySuggestionClick(suggestion);
+                    }}
+                    disabled={!isDocumentEditable}
+                    className={`mt-3 w-full py-2 px-3 rounded border text-xs font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDarkMode 
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600 border-blue-500' 
+                        : 'bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600 border-blue-400'
+                    }`}
+                  >
+                    ✨ Apply AI Suggestion
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       
       {/* Voice Notes Modal */}
       {showVoiceNotes && (
@@ -771,16 +875,4 @@ export function TextEditor() {
       )}
     </div>
   );
-}
-
-// Debounce utility function
-function debounce<T extends (...args: any[]) => void>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
 } 

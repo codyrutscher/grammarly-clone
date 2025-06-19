@@ -6,7 +6,7 @@ import { useDarkModeStore } from '../store/useDarkModeStore'
 import {
   createTeam,
   getUserTeams,
-  createTeamMemberWithCredentials,
+  inviteUserToTeam,
   getPendingInvitations,
   acceptTeamInvitation,
   declineTeamInvitation,
@@ -116,7 +116,7 @@ export function TeamManagementPanel({ isOpen, onClose }: TeamManagementPanelProp
   }
 
   const handleInviteMember = async (teamId: string) => {
-    if (!inviteForm.email || !inviteForm.role) {
+    if (!inviteForm.email || !inviteForm.role || !user) {
       setError('Please fill in all fields')
       return
     }
@@ -125,32 +125,41 @@ export function TeamManagementPanel({ isOpen, onClose }: TeamManagementPanelProp
     setError('')
 
     try {
-      const result = await createTeamMemberWithCredentials(
+      const result = await inviteUserToTeam(
         teamId,
         inviteForm.email,
         inviteForm.role,
+        user.uid,
         inviteForm.displayName || undefined
       )
 
-      if (result.success && result.tempPassword) {
-        const team = userTeams.find(t => t.id === teamId)
-        setCreatedCredentials({
-          email: inviteForm.email,
-          password: result.tempPassword,
-          teamName: team?.name || 'Team'
-        })
+      if (result.success) {
+        if (result.isExistingUser) {
+          // Existing user - invitation sent
+          setError('') // Clear any previous errors
+          alert(`Invitation sent to ${inviteForm.email}! They will receive a notification to join the team.`)
+        } else {
+          // New user - account created
+          const team = userTeams.find(t => t.id === teamId)
+          setCreatedCredentials({
+            email: inviteForm.email,
+            password: result.tempPassword!,
+            teamName: team?.name || 'Team'
+          })
+        }
         
         // Clear form
         setInviteForm({ email: '', role: 'editor', teamId: '', displayName: '' })
         
-        // Refresh teams
+        // Refresh teams and invitations
         await loadUserTeams()
+        await loadPendingInvitations()
       } else {
-        setError(result.error || 'Failed to create team member')
+        setError(result.error || 'Failed to invite user')
       }
     } catch (error: any) {
-      console.error('Error creating team member:', error)
-      setError(error.message || 'Failed to create team member')
+      console.error('Error inviting user:', error)
+      setError(error.message || 'Failed to invite user')
     } finally {
       setLoading(false)
     }
@@ -441,11 +450,11 @@ export function TeamManagementPanel({ isOpen, onClose }: TeamManagementPanelProp
                               disabled={loading || !inviteForm.email}
                               className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
                             >
-                              {loading ? '...' : 'Create Account'}
+                              {loading ? '...' : 'Invite'}
                             </button>
                           </div>
                           <p className="text-xs text-gray-500">
-                            This will create a new account with temporary credentials. No email will be sent - you must share the credentials manually.
+                            This will invite the user to join the team. They will receive a notification to join.
                           </p>
                         </div>
                       </div>
