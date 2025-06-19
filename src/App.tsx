@@ -153,87 +153,61 @@ function App() {
         {/* Hero Section */}
         <div className="py-20 px-4 relative z-10">
           <div className="text-center max-w-5xl mx-auto">
-            <div className="mb-8">
-              <h2 className={`text-6xl font-bold mb-4 leading-tight transition-colors ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">StudyWrite</span>{' '}
-                <br />
-                <span className="text-4xl">AI Writing Assistant for </span>
-                <span className="bg-gradient-to-r from-grammarly-green to-emerald-500 bg-clip-text text-transparent">
-                  Students
-                </span>
-              </h2>
-              <h2 className={`text-2xl mb-4 leading-tight transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                A Grammarly Clone for Students
-              </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-grammarly-blue to-purple-600 mx-auto rounded-full"></div>
-            </div>
-            
-            <p className={`text-xl mb-12 leading-relaxed max-w-3xl mx-auto transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-              Perfect for essays, research papers, and academic writing. Get real-time AI suggestions tailored to 
-              <strong> MLA, APA, Chicago</strong> styles with support for <strong>US, UK, Australian, and Canadian English</strong>.
-            </p>
-            
-            <div className="grid md:grid-cols-3 gap-8 mb-12">
-              <div className={`backdrop-blur-sm p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border ${
-                isDarkMode 
-                  ? 'bg-gray-800/70 border-gray-700/50 hover:border-red-400' 
-                  : 'bg-white/70 border-white/20 hover:border-red-200'
-              }`}>
-                <div className="w-16 h-16 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto shadow-lg">
-                  <span className="text-2xl">🎓</span>
-                </div>
-                <h3 className={`text-xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Academic Writing Modes</h3>
-                <p className={`leading-relaxed transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  MLA, APA, Chicago, and Harvard style support for essays, research papers, and thesis writing
+            {/* Animated hero content */}
+            <div className="space-y-8 animate-fade-in-up">
+              <div className="space-y-6">
+                <h1 className={`text-5xl lg:text-7xl font-bold leading-tight transition-colors ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                  <span className="block">Write, improve,</span>
+                  <span className="bg-gradient-to-r from-blue-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent animate-gradient">
+                    succeed
+                  </span>
+                </h1>
+                
+                <p className={`text-xl lg:text-2xl max-w-4xl mx-auto leading-relaxed transition-colors ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>
+                  AI-powered writing assistant designed for students. Get real-time suggestions, 
+                  academic style support, and comprehensive writing analysis.
                 </p>
               </div>
               
-              <div className={`backdrop-blur-sm p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border ${
-                isDarkMode 
-                  ? 'bg-gray-800/70 border-gray-700/50 hover:border-blue-400' 
-                  : 'bg-white/70 border-white/20 hover:border-blue-200'
-              }`}>
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center mb-6 mx-auto shadow-lg">
-                  <span className="text-2xl">⚡</span>
-                </div>
-                <h3 className={`text-xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Speed Mode</h3>
-                <p className={`leading-relaxed transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  Quick proofreading for last-minute assignments with critical error detection
-                </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-8">
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="group relative px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl text-lg font-semibold transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/25 hover:scale-105"
+                >
+                  <span className="relative z-10 flex items-center gap-2">
+                    <span>Start Writing Better</span>
+                    <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                </button>
+                
+                <button
+                  onClick={() => setShowVideoModal(true)}
+                  className={`group px-8 py-4 rounded-xl text-lg font-semibold transition-all duration-300 hover:scale-105 ${
+                    isDarkMode 
+                      ? 'bg-gray-800/50 text-white border border-gray-700 hover:border-gray-600' 
+                      : 'bg-white/50 text-gray-900 border border-gray-200 hover:border-gray-300 shadow-lg'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                    <span>Watch Demo</span>
+                  </span>
+                </button>
               </div>
               
-              <div className={`backdrop-blur-sm p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border ${
-                isDarkMode 
-                  ? 'bg-gray-800/70 border-gray-700/50 hover:border-orange-400' 
-                  : 'bg-white/70 border-white/20 hover:border-orange-200'
-              }`}>
-                <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center mb-6 mx-auto shadow-lg">
-                  <span className="text-2xl">🌍</span>
-                </div>
-                <h3 className={`text-xl font-bold mb-3 transition-colors ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Language Variants</h3>
-                <p className={`leading-relaxed transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  US, UK, Australian, and Canadian English support for international students
-                </p>
+              <div className={`text-sm transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Free forever • No credit card required • Join 10,000+ students
               </div>
             </div>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <button
-                onClick={() => setShowAuthModal(true)}
-                className="bg-gradient-to-r from-grammarly-green to-emerald-500 text-white px-10 py-4 rounded-xl text-lg font-semibold hover:from-green-600 hover:to-emerald-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
-              >
-                📚 Start Writing Better
-              </button>
-              
-              <button
-                onClick={() => setShowVideoModal(true)}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2"
-              >
-                🎥 Watch Demo
-              </button>
-            </div>
-            
-            <p className="text-sm text-gray-500 mt-4">Perfect for students • Free forever • No credit card required</p>
           </div>
         </div>
 
