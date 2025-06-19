@@ -831,57 +831,104 @@ export function applySuggestion(text: string, suggestion: GrammarSuggestion): st
     return text;
   }
 
-  // Validate that the suggestion positions are within the text bounds
-  if (suggestion.start < 0 || suggestion.end > text.length || suggestion.start >= suggestion.end) {
-    console.error('Invalid suggestion positions:', suggestion);
-    return text;
+  // First, try the exact positions provided
+  if (suggestion.start >= 0 && suggestion.end <= text.length && suggestion.start < suggestion.end) {
+    const originalTextAtPosition = text.substring(suggestion.start, suggestion.end);
+    if (originalTextAtPosition === suggestion.original) {
+      // Perfect match - apply the suggestion
+      const before = text.substring(0, suggestion.start);
+      const after = text.substring(suggestion.end);
+      const newText = before + suggestion.suggestion + after;
+      
+      console.log('Successfully applied suggestion at exact positions:', {
+        before: before.slice(-10),
+        replacement: suggestion.suggestion,
+        after: after.slice(0, 10),
+        newLength: newText.length
+      });
+      
+      return newText;
+    } else {
+      console.warn('Original text mismatch at provided positions:', {
+        expected: suggestion.original,
+        actual: originalTextAtPosition,
+        position: `${suggestion.start}-${suggestion.end}`
+      });
+    }
+  } else {
+    console.warn('Invalid suggestion positions:', {
+      start: suggestion.start,
+      end: suggestion.end,
+      textLength: text.length
+    });
   }
 
-  // Verify that the original text matches what we expect
-  const originalTextAtPosition = text.substring(suggestion.start, suggestion.end);
-  if (originalTextAtPosition !== suggestion.original) {
-    console.warn('Original text mismatch:', {
-      expected: suggestion.original,
-      actual: originalTextAtPosition,
-      position: `${suggestion.start}-${suggestion.end}`
+  // Fallback 1: Try to find exact match of the original text
+  const exactIndex = text.indexOf(suggestion.original);
+  if (exactIndex !== -1) {
+    console.log('Found exact match at different position:', exactIndex);
+    const before = text.substring(0, exactIndex);
+    const after = text.substring(exactIndex + suggestion.original.length);
+    const newText = before + suggestion.suggestion + after;
+    
+    console.log('Successfully applied suggestion at found position:', {
+      foundAt: exactIndex,
+      replacement: suggestion.suggestion,
+      newLength: newText.length
     });
     
-    // Try to find the text in a small range around the expected position
-    const searchRange = 50;
-    const searchStart = Math.max(0, suggestion.start - searchRange);
-    const searchEnd = Math.min(text.length, suggestion.end + searchRange);
-    const searchText = text.substring(searchStart, searchEnd);
-    const foundIndex = searchText.indexOf(suggestion.original);
+    return newText;
+  }
+
+  // Fallback 2: Try case-insensitive match
+  const lowerText = text.toLowerCase();
+  const lowerOriginal = suggestion.original.toLowerCase();
+  const caseInsensitiveIndex = lowerText.indexOf(lowerOriginal);
+  if (caseInsensitiveIndex !== -1) {
+    console.log('Found case-insensitive match at position:', caseInsensitiveIndex);
+    const before = text.substring(0, caseInsensitiveIndex);
+    const after = text.substring(caseInsensitiveIndex + suggestion.original.length);
+    const newText = before + suggestion.suggestion + after;
     
-    if (foundIndex !== -1) {
-      // Adjust the positions
-      const actualStart = searchStart + foundIndex;
-      const actualEnd = actualStart + suggestion.original.length;
-      
-      console.log('Found text at adjusted position:', actualStart, actualEnd);
-      
-      const before = text.substring(0, actualStart);
-      const after = text.substring(actualEnd);
-      return before + suggestion.suggestion + after;
-    } else {
-      console.error('Could not find original text to replace');
-      return text;
+    console.log('Successfully applied suggestion with case-insensitive match');
+    return newText;
+  }
+
+  // Fallback 3: Try fuzzy matching for close matches (handle extra spaces, punctuation, etc.)
+  const words = suggestion.original.split(/\s+/);
+  if (words.length > 1) {
+    // Try to match just the key words
+    const keyWords = words.filter(word => word.length > 2); // Skip short words like "is", "a", etc.
+    if (keyWords.length > 0) {
+      const keyWordPattern = keyWords.map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*?');
+      const regex = new RegExp(keyWordPattern, 'i');
+      const match = text.match(regex);
+      if (match && match.index !== undefined) {
+        console.log('Found fuzzy match with key words:', match[0]);
+        const before = text.substring(0, match.index);
+        const after = text.substring(match.index + match[0].length);
+        const newText = before + suggestion.suggestion + after;
+        
+        console.log('Successfully applied suggestion with fuzzy matching');
+        return newText;
+      }
     }
   }
 
-  // Apply the suggestion
-  const before = text.substring(0, suggestion.start);
-  const after = text.substring(suggestion.end);
-  const newText = before + suggestion.suggestion + after;
-  
-  console.log('Successfully applied suggestion:', {
-    before: before.slice(-10),
-    replacement: suggestion.suggestion,
-    after: after.slice(0, 10),
-    newLength: newText.length
-  });
+  // Fallback 4: For AI suggestions that might be trying to replace the entire text
+  if (suggestion.start === 0 && suggestion.end >= text.length - 2) {
+    console.log('Suggestion appears to be for entire text, applying as full replacement');
+    console.log('Replacing entire text with suggestion');
+    return suggestion.suggestion;
+  }
 
-  return newText;
+  console.error('Could not find original text to replace, all fallback methods failed:', {
+    originalText: suggestion.original,
+    textPreview: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+    suggestion: suggestion.suggestion
+  });
+  
+  return text;
 }
 
 export function getTextStats(text: string) {

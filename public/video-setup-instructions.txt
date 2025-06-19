@@ -1,0 +1,23 @@
+📹 DEMO VIDEO SETUP INSTRUCTIONS
+
+1. Add your MP4 demo video to this public folder with the filename: demo-video.mp4
+
+2. Optional: Add a poster image named: video-poster.jpg (this shows before the video plays)
+
+3. The demo button will now open a professional video modal instead of a new tab
+
+4. Video recommendations:
+   - Duration: 2-5 minutes
+   - Resolution: 1080p or 720p
+   - File size: Under 50MB
+   - Show key features: writing assistance, AI chat, team collaboration
+
+5. After adding the video, test the "🎥 Watch Demo" button on the landing page
+
+✅ The video modal includes:
+   - Professional overlay design
+   - Auto-play with controls
+   - Keyboard shortcuts (Escape to close)
+   - Click outside to close
+   - Responsive design
+   - Dark/light mode support 

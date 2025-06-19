@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { DocumentPermissions } from '../types';
 
 export interface Document {
   id: string;
@@ -7,6 +8,13 @@ export interface Document {
   createdAt: Date;
   updatedAt: Date;
   userId: string;
+  // Shared document properties (optional)
+  isShared?: boolean;
+  sharedBy?: string;
+  teamId?: string;
+  permissions?: DocumentPermissions;
+  sharedAt?: Date;
+  sharedDocumentId?: string; // ID of the sharedDocuments collection entry
 }
 
 export interface GrammarSuggestion {

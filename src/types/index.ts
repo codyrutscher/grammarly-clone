@@ -16,6 +16,13 @@ export interface Document {
   createdAt: Date
   updatedAt: Date
   userId: string
+  // Shared document metadata (only present for shared documents)
+  isShared?: boolean
+  sharedBy?: string
+  teamId?: string
+  permissions?: DocumentPermissions
+  sharedAt?: Date
+  sharedDocumentId?: string // ID of the sharedDocuments collection entry
 }
 
 // New types for academic writing features
@@ -92,4 +99,73 @@ export interface PlagiarismMatch {
   similarityScore: number;
   source: string;
   url?: string;
+}
+
+// Team Collaboration Types
+export interface Team {
+  id: string;
+  name: string;
+  description?: string;
+  ownerId: string;
+  members: TeamMember[];
+  sharedWritingSettings: WritingSettings;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TeamMember {
+  userId: string;
+  email: string;
+  displayName?: string;
+  role: TeamRole;
+  joinedAt: Date;
+  status: MemberStatus;
+}
+
+export type TeamRole = 'owner' | 'admin' | 'editor' | 'reviewer' | 'viewer';
+export type MemberStatus = 'active' | 'pending' | 'inactive';
+
+export interface SharedDocument {
+  id: string;
+  originalDocumentId: string;
+  documentTitle: string;
+  teamId: string;
+  sharedBy: string;
+  permissions: DocumentPermissions;
+  sharedAt: Date;
+  lastModified: Date;
+}
+
+export interface DocumentPermissions {
+  canView: boolean;
+  canEdit: boolean;
+  canComment: boolean;
+  canShare: boolean;
+}
+
+export interface TeamInvitation {
+  id: string;
+  teamId: string;
+  teamName: string;
+  invitedBy: string;
+  invitedEmail: string;
+  role: TeamRole;
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+  createdAt: Date;
+  expiresAt: Date;
+}
+
+export interface DocumentComment {
+  id: string;
+  documentId: string;
+  userId: string;
+  userName: string;
+  content: string;
+  position: {
+    startIndex: number;
+    endIndex: number;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+  resolved: boolean;
 } 

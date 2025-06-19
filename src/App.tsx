@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthStore } from './store/useAuthStore'
 import { useAuthProvider } from './hooks/useAuthProvider'
 import { useProfileProvider } from './hooks/useProfileProvider'
 import { useAutoSave } from './hooks/useAutoSave'
 import { DarkModeToggle } from './components/DarkModeToggle'
 import { useDarkModeStore } from './store/useDarkModeStore'
-import { useDocumentStore } from './store/useDocumentStore'
 import { useProfileStore } from './store/useProfileStore'
+import { useTeamStore } from './store/useTeamStore'
 import { AuthModal } from './components/AuthModal'
 import { DocumentSidebar } from './components/DocumentSidebar'
 import { TextEditor } from './components/TextEditor'
@@ -14,7 +14,19 @@ import { AnalysisPanel } from './components/AnalysisPanel'
 import { AIChatPanel } from './components/AIChatPanel'
 import { UserProfileModal } from './components/UserProfileModal'
 import { WritingSettingsPanel } from './components/WritingSettingsPanel'
+import { TeamManagementPanel } from './components/TeamManagementPanel'
+import { DocumentSharingPanel } from './components/DocumentSharingPanel'
+import { PricingPanel } from './components/PricingPanel'
+import { VideoModal } from './components/VideoModal'
+import { UpgradePrompt } from './components/UpgradePrompt'
+import { useSubscriptionStore } from './store/useSubscriptionStore'
 import { logout } from './utils/firebaseUtils'
+import { getUserTeams } from './utils/teamService'
+import { FeaturesPage } from './components/FeaturesPage'
+import { IntegrationsPage } from './components/IntegrationsPage'
+import { HelpCenterPage } from './components/HelpCenterPage'
+import { PrivacyPolicyPage } from './components/PrivacyPolicyPage'
+import { TermsOfServicePage } from './components/TermsOfServicePage'
 
 function App() {
   useAuthProvider()
@@ -22,16 +34,48 @@ function App() {
   
   const { user, loading } = useAuthStore()
   const { profile, loading: profileLoading } = useProfileStore()
+  const { setUserTeams } = useTeamStore()
   const { isDarkMode } = useDarkModeStore()
+  const { subscriptionType, documentsUsed, maxDocuments } = useSubscriptionStore()
+  
+  // Load user teams when user logs in
+  useEffect(() => {
+    const loadTeams = async () => {
+      if (user) {
+        try {
+          console.log('Loading teams for user:', user.uid)
+          const teams = await getUserTeams(user.uid)
+          console.log('Loaded teams:', teams.length)
+          setUserTeams(teams)
+        } catch (error) {
+          console.error('Error loading teams:', error)
+        }
+      } else {
+        // Clear teams when user logs out
+        setUserTeams([])
+      }
+    }
+    
+    loadTeams()
+  }, [user, setUserTeams])
   
   // Debug logging
   console.log('App state:', { user: !!user, profile: !!profile, profileLoading })
-  const { currentDocument } = useDocumentStore()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showAnalysisPanel, setShowAnalysisPanel] = useState(false)
   const [showAIChatPanel, setShowAIChatPanel] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [showWritingSettings, setShowWritingSettings] = useState(false)
+  const [showTeamManagement, setShowTeamManagement] = useState(false)
+  const [showDocumentSharing, setShowDocumentSharing] = useState(false)
+  const [showPricing, setShowPricing] = useState(false)
+  const [showVideoModal, setShowVideoModal] = useState(false)
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
+  const [showFeaturesPage, setShowFeaturesPage] = useState(false)
+  const [showIntegrationsPage, setShowIntegrationsPage] = useState(false)
+  const [showHelpCenterPage, setShowHelpCenterPage] = useState(false)
+  const [showPrivacyPolicyPage, setShowPrivacyPolicyPage] = useState(false)
+  const [showTermsOfServicePage, setShowTermsOfServicePage] = useState(false)
   
   const { saveStatus } = useAutoSave()
 
@@ -173,12 +217,21 @@ function App() {
               </div>
             </div>
 
-            <button
-              onClick={() => setShowAuthModal(true)}
-              className="bg-gradient-to-r from-grammarly-green to-emerald-500 text-white px-10 py-4 rounded-xl text-lg font-semibold hover:from-green-600 hover:to-emerald-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
-            >
-              📚 Start Writing Better
-            </button>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="bg-gradient-to-r from-grammarly-green to-emerald-500 text-white px-10 py-4 rounded-xl text-lg font-semibold hover:from-green-600 hover:to-emerald-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                📚 Start Writing Better
+              </button>
+              
+              <button
+                onClick={() => setShowVideoModal(true)}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2"
+              >
+                🎥 Watch Demo
+              </button>
+            </div>
             
             <p className="text-sm text-gray-500 mt-4">Perfect for students • Free forever • No credit card required</p>
           </div>
@@ -237,8 +290,8 @@ function App() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Auto-Save</h3>
-                <p className="text-gray-600 text-sm">Never lose your work with automatic cloud synchronization</p>
+                <h3 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Auto-Save</h3>
+                <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Never lose your work with automatic cloud synchronization</p>
               </div>
               
               <div className="text-center p-6">
@@ -247,8 +300,8 @@ function App() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Detailed Analytics</h3>
-                <p className="text-gray-600 text-sm">Track your writing progress with comprehensive insights</p>
+                <h3 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Detailed Analytics</h3>
+                <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Track your writing progress with comprehensive insights</p>
               </div>
               
               <div className="text-center p-6">
@@ -257,8 +310,8 @@ function App() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Context Aware</h3>
-                <p className="text-gray-600 text-sm">AI understands your writing context for smarter suggestions</p>
+                <h3 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Context Aware</h3>
+                <p className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>AI understands your writing context for smarter suggestions</p>
               </div>
             </div>
           </div>
@@ -402,9 +455,9 @@ function App() {
               <p className="text-xl text-gray-600">Choose the plan that works best for you</p>
             </div>
             
-            <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
               {/* Free Plan */}
-              <div className="bg-white border-2 border-gray-200 rounded-2xl p-8 hover:border-blue-300 transition-all duration-300">
+              <div className="bg-white border-2 border-gray-200 rounded-2xl p-8 hover:border-orange-300 transition-all duration-300">
                 <div className="text-center">
                   <h3 className="text-2xl font-bold text-gray-900 mb-4">Free</h3>
                   <div className="mb-8">
@@ -416,39 +469,48 @@ function App() {
                       <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Up to 5 documents
+                      All grammar checking features
                     </li>
                     <li className="flex items-center">
                       <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Basic AI suggestions
+                      All AI writing features
                     </li>
                     <li className="flex items-center">
                       <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Grammar & spelling check
+                      Team collaboration
+                    </li>
+                    <li className="flex items-center">
+                      <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Academic style support
+                    </li>
+                    <li className="flex items-center">
+                      <svg className="w-5 h-5 text-orange-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <span className="text-orange-600 font-medium">Limited to 5 documents/month</span>
                     </li>
                   </ul>
-                  <button 
-                    onClick={() => setShowAuthModal(true)}
-                    className="w-full bg-gray-900 text-white py-3 px-6 rounded-lg hover:bg-gray-800 transition-colors font-medium"
-                  >
-                    Get Started Free
-                  </button>
+                  <div className="w-full bg-gray-100 text-gray-600 py-3 px-6 rounded-lg text-center font-medium">
+                    Available Now - Sign Up Above
+                  </div>
                 </div>
               </div>
               
-              {/* Pro Plan */}
+              {/* Premium Plan */}
               <div className="bg-gradient-to-br from-blue-50 to-indigo-100 border-2 border-blue-300 rounded-2xl p-8 relative transform scale-105 shadow-xl">
                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                  <span className="bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-medium">Most Popular</span>
+                  <span className="bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-medium">Recommended</span>
                 </div>
                 <div className="text-center">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-4">Pro</h3>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-4">Premium</h3>
                   <div className="mb-8">
-                    <span className="text-4xl font-bold text-gray-900">$12</span>
+                    <span className="text-4xl font-bold text-gray-900">$5</span>
                     <span className="text-gray-600">/month</span>
                   </div>
                   <ul className="text-left space-y-4 mb-8">
@@ -456,165 +518,79 @@ function App() {
                       <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Unlimited documents
+                      All grammar checking features
                     </li>
                     <li className="flex items-center">
                       <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Advanced AI suggestions
+                      All AI writing features
                     </li>
                     <li className="flex items-center">
                       <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Style & tone analysis
+                      Team collaboration
                     </li>
                     <li className="flex items-center">
                       <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Priority support
+                      Academic style support
+                    </li>
+                    <li className="flex items-center">
+                      <svg className="w-5 h-5 text-blue-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <span className="text-blue-600 font-bold">UNLIMITED documents</span>
                     </li>
                   </ul>
-                  <button 
-                    onClick={() => setShowAuthModal(true)}
-                    className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                  >
-                    Start Pro Trial
-                  </button>
-                </div>
-              </div>
-              
-              {/* Team Plan */}
-              <div className="bg-white border-2 border-gray-200 rounded-2xl p-8 hover:border-purple-300 transition-all duration-300">
-                <div className="text-center">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-4">Team</h3>
-                  <div className="mb-8">
-                    <span className="text-4xl font-bold text-gray-900">$30</span>
-                    <span className="text-gray-600">/month</span>
+                  <div className="w-full bg-blue-100 text-blue-600 py-3 px-6 rounded-lg text-center font-medium">
+                    Upgrade Available in App
                   </div>
-                  <ul className="text-left space-y-4 mb-8">
-                    <li className="flex items-center">
-                      <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Up to 10 team members
-                    </li>
-                    <li className="flex items-center">
-                      <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Shared workspaces
-                    </li>
-                    <li className="flex items-center">
-                      <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Team analytics
-                    </li>
-                    <li className="flex items-center">
-                      <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Admin controls
-                    </li>
-                  </ul>
-                  <button 
-                    onClick={() => setShowAuthModal(true)}
-                    className="w-full bg-purple-600 text-white py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors font-medium"
-                  >
-                    Contact Sales
-                  </button>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* CTA Section */}
-        <div className="bg-gradient-to-r from-grammarly-blue to-purple-600 py-20 relative z-10">
-          <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-            <h2 className="text-4xl font-bold text-white mb-6">
-              Ready to Transform Your Writing?
-            </h2>
-            <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-              Join thousands of writers who have improved their communication with our AI-powered writing assistant.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button
-                onClick={() => setShowAuthModal(true)}
-                className="bg-white text-blue-600 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition-all duration-200 shadow-lg hover:shadow-xl"
-              >
-                🚀 Start Writing Better Today
-              </button>
-              <button
-                onClick={() => setShowAuthModal(true)}
-                className="border-2 border-white text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-white hover:text-blue-600 transition-all duration-200"
-              >
-                📞 Talk to Sales
-              </button>
-            </div>
-            <p className="text-blue-200 text-sm mt-6">No credit card required • 14-day free trial</p>
           </div>
         </div>
 
         {/* Footer */}
         <footer className="bg-gray-900 text-white py-16 relative z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid md:grid-cols-4 gap-8">
-              <div className="md:col-span-2">
+            <div className="grid md:grid-cols-3 gap-8">
+              <div className="md:col-span-1">
                 <div className="flex items-center space-x-3 mb-6">
                   <div className="w-8 h-8 bg-gradient-to-br from-grammarly-blue to-purple-600 rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-lg">G</span>
+                    <span className="text-white font-bold text-lg">S</span>
                   </div>
-                  <h3 className="text-2xl font-bold">Grammarly Clone</h3>
+                  <h3 className="text-2xl font-bold">StudyWrite</h3>
                 </div>
                 <p className="text-gray-400 mb-6 max-w-md">
-                  AI-powered writing assistant that helps you communicate more effectively with intelligent suggestions and real-time feedback.
+                  AI-powered writing assistant that helps students communicate more effectively with intelligent suggestions and real-time feedback.
                 </p>
-                <div className="flex space-x-4">
-                  <a href="#" className="text-gray-400 hover:text-white transition-colors">
-                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/>
-                    </svg>
-                  </a>
-                  <a href="#" className="text-gray-400 hover:text-white transition-colors">
-                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M22.46 6c-.77.35-1.6.58-2.46.69.88-.53 1.56-1.37 1.88-2.38-.83.5-1.75.85-2.72 1.05C18.37 4.5 17.26 4 16 4c-2.35 0-4.27 1.92-4.27 4.29 0 .34.04.67.11.98C8.28 9.09 5.11 7.38 3 4.79c-.37.63-.58 1.37-.58 2.15 0 1.49.75 2.81 1.91 3.56-.71 0-1.37-.2-1.95-.5v.03c0 2.08 1.48 3.82 3.44 4.21a4.22 4.22 0 0 1-1.93.07 4.28 4.28 0 0 0 4 2.98 8.521 8.521 0 0 1-5.33 1.84c-.34 0-.68-.02-1.02-.06C3.44 20.29 5.7 21 8.12 21 16 21 20.33 14.46 20.33 8.79c0-.19 0-.37-.01-.56.84-.6 1.56-1.36 2.14-2.23z"/>
-                    </svg>
-                  </a>
-                  <a href="#" className="text-gray-400 hover:text-white transition-colors">
-                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                    </svg>
-                  </a>
-                </div>
               </div>
               
               <div>
                 <h4 className="text-lg font-semibold mb-4">Product</h4>
                 <ul className="space-y-2 text-gray-400">
-                  <li><a href="#" className="hover:text-white transition-colors">Features</a></li>
-                  <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
-                  <li><a href="#" className="hover:text-white transition-colors">API</a></li>
-                  <li><a href="#" className="hover:text-white transition-colors">Integrations</a></li>
+                  <li><button onClick={() => setShowFeaturesPage(true)} className="hover:text-white transition-colors text-left">Features</button></li>
+                  <li><button onClick={() => setShowAuthModal(true)} className="hover:text-white transition-colors text-left">Pricing</button></li>
+                  
                 </ul>
               </div>
               
               <div>
                 <h4 className="text-lg font-semibold mb-4">Support</h4>
                 <ul className="space-y-2 text-gray-400">
-                  <li><a href="#" className="hover:text-white transition-colors">Help Center</a></li>
-                  <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
-                  <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
-                  <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
+                  <li><button onClick={() => setShowHelpCenterPage(true)} className="hover:text-white transition-colors text-left">Help Center</button></li>
+                  <li><button onClick={() => setShowPrivacyPolicyPage(true)} className="hover:text-white transition-colors text-left">Privacy Policy</button></li>
+                  <li><button onClick={() => setShowTermsOfServicePage(true)} className="hover:text-white transition-colors text-left">Terms of Service</button></li>
                 </ul>
               </div>
             </div>
             
             <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
-              <p>&copy; 2024 Grammarly Clone. All rights reserved. Powered by AI technology.</p>
+              <p>&copy; 2025 StudyWrite. All rights reserved. Powered by AI technology.</p>
             </div>
           </div>
         </footer>
@@ -623,149 +599,237 @@ function App() {
           isOpen={showAuthModal}
           onClose={() => setShowAuthModal(false)}
         />
+
+        <PricingPanel
+          isOpen={showPricing}
+          onClose={() => setShowPricing(false)}
+        />
+
+        <VideoModal
+          isOpen={showVideoModal}
+          onClose={() => setShowVideoModal(false)}
+          videoSrc="/demo-video.mp4"
+          title="StudyWrite Demo - AI Writing Assistant for Students"
+        />
+
+        {/* Footer Page Modals */}
+        <FeaturesPage
+          isOpen={showFeaturesPage}
+          onClose={() => setShowFeaturesPage(false)}
+        />
+
+        <IntegrationsPage
+          isOpen={showIntegrationsPage}
+          onClose={() => setShowIntegrationsPage(false)}
+        />
+
+        <HelpCenterPage
+          isOpen={showHelpCenterPage}
+          onClose={() => setShowHelpCenterPage(false)}
+        />
+
+        <PrivacyPolicyPage
+          isOpen={showPrivacyPolicyPage}
+          onClose={() => setShowPrivacyPolicyPage(false)}
+        />
+
+        <TermsOfServicePage
+          isOpen={showTermsOfServicePage}
+          onClose={() => setShowTermsOfServicePage(false)}
+        />
       </div>
     )
   }
 
   return (
-    <div className={`h-screen flex transition-colors duration-300 ${
-      isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
+    <div className={`min-h-screen transition-colors duration-300 ${
+      isDarkMode 
+        ? 'bg-gradient-to-br from-gray-900 via-blue-900 to-indigo-900' 
+        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
     }`}>
-      {/* Sidebar */}
-      <DocumentSidebar />
-      
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Top Bar */}
-        <div className={`backdrop-blur-md border-b px-6 py-4 flex items-center justify-between shadow-sm transition-colors duration-300 ${
-          isDarkMode 
-            ? 'bg-gray-800/95 border-gray-700' 
-            : 'bg-white/95 border-gray-200'
-        }`}>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-grammarly-blue to-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">G</span>
+      {/* Header */}
+      <nav className={`backdrop-blur-md shadow-lg border-b-2 transition-colors duration-300 ${
+        isDarkMode 
+          ? 'bg-gray-800/90 border-gray-600' 
+          : 'bg-white/90 border-gray-300'
+      }`}>
+        <div className="mx-auto px-2 sm:px-4 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className={`flex items-center space-x-2 sm:space-x-3 min-w-0 flex-shrink-0 px-3 py-2 rounded-lg border ${
+              isDarkMode 
+                ? 'border-gray-600 bg-gray-700/50' 
+                : 'border-gray-200 bg-gray-50/50'
+            }`}>
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-grammarly-blue to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md">
+                <span className="text-white font-bold text-sm sm:text-lg">S</span>
               </div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-grammarly-blue to-purple-600 bg-clip-text text-transparent">
+              <h1 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-grammarly-blue to-purple-600 bg-clip-text text-transparent truncate">
                 StudyWrite
               </h1>
             </div>
-            {currentDocument && (
-              <div className="flex">
-                <span className="text-gray-400">•</span>
-                <span className={`font-medium transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{currentDocument.title}</span>
-                {/* Save status indicator */}
-                <div className="flex items-center space-x-1 ml-2 mr-4">
-                  {saveStatus === 'saving' && (
-                    <>
-                      <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-                      <span className="text-yellow-600 text-xs">Saving...</span>
-                    </>
-                  )}
-                  {saveStatus === 'saved' && (
-                    <>
-                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                      <span className="text-green-600 text-xs">Saved</span>
-                    </>
-                  )}
-                  {saveStatus === 'unsaved' && (
-                    <>
-                      <div className="w-2 h-2 bg-red-400 rounded-full"></div>
-                      <span className="text-red-600 text-xs">Unsaved changes</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <div className="flex items-center space-x-3">
-            <DarkModeToggle size="sm" />
-            <button
-              onClick={() => setShowWritingSettings(true)}
-              className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 shadow-md hover:shadow-lg font-medium ${
-                isDarkMode 
-                  ? 'bg-gradient-to-r from-indigo-500 to-blue-500 text-white hover:from-indigo-600 hover:to-blue-600' 
-                  : 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700'
-              }`}
-            >
-              ⚙️ Writing Settings
-            </button>
-            <button
-              onClick={() => setShowAnalysisPanel(true)}
-              className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 shadow-md hover:shadow-lg font-medium ${
-                isDarkMode 
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white hover:from-green-600 hover:to-emerald-500' 
-                  : 'bg-gradient-to-r from-grammarly-green to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600'
-              }`}
-            >
-              📊 Analysis
-            </button>
-            <button
-              onClick={() => setShowAIChatPanel(true)}
-              className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 shadow-md hover:shadow-lg font-medium ${
-                isDarkMode 
-                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600' 
-                  : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700'
-              }`}
-            >
-              🤖 AI Assistant
-            </button>
-            <div className={`flex items-center space-x-3 pl-3 border-l transition-colors ${
-              isDarkMode ? 'border-gray-600' : 'border-gray-200'
-            }`}>
-              <button
-                onClick={() => setShowProfileModal(true)}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-all duration-200 ${
+            
+            <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+              {/* Subscription Status */}
+              {subscriptionType === 'free' && (
+                <div className={`hidden sm:flex items-center space-x-2 mr-2 px-3 py-2 rounded-lg border ${
                   isDarkMode 
-                    ? 'hover:bg-gray-700 border-gray-600 hover:border-gray-500' 
-                    : 'hover:bg-blue-50 border-transparent hover:border-blue-200'
-                }`}
-                title="Manage Profile"
-              >
-                <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center border-2 border-white shadow-sm">
-                  <span className="text-blue-600 text-lg">👤</span>
-                </div>
-                <div className="text-sm">
-                  <div className={`text-xs transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Welcome,</div>
-                  <div className={`font-medium transition-colors ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
-                    {profileLoading ? 'Loading...' : (profile?.displayName || profile?.firstName || user?.email?.split('@')[0] || 'User')}
+                    ? 'border-orange-600 bg-orange-900/30' 
+                    : 'border-orange-200 bg-orange-50'
+                }`}>
+                  <div className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full border border-orange-200">
+                    Free ({documentsUsed}/{maxDocuments})
                   </div>
+                  <button
+                    onClick={() => setShowUpgradePrompt(true)}
+                    className="text-xs bg-gradient-to-r from-blue-500 to-purple-600 text-white px-3 py-1 rounded-full hover:from-blue-600 hover:to-purple-700 transition-all border border-blue-400 shadow-md"
+                  >
+                    Upgrade
+                  </button>
                 </div>
-                <svg className={`w-4 h-4 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              
-              <button
-                onClick={() => setShowProfileModal(true)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              )}
+              {subscriptionType === 'premium' && (
+                <div className={`hidden sm:flex items-center space-x-2 mr-2 px-3 py-2 rounded-lg border ${
                   isDarkMode 
-                    ? 'bg-blue-500 text-white hover:bg-blue-600' 
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-                title="Profile Settings"
+                    ? 'border-green-600 bg-green-900/30' 
+                    : 'border-green-200 bg-green-50'
+                }`}>
+                  <div className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full border border-green-200">
+                    ✓ Premium
+                  </div>
+                  <button
+                    onClick={() => setShowPricing(true)}
+                    className="text-xs bg-gray-100 text-gray-700 px-3 py-1 rounded-full hover:bg-gray-200 transition-all border border-gray-300 shadow-sm"
+                  >
+                    Manage
+                  </button>
+                </div>
+              )}
+              
+              <div className={`p-1 rounded-lg border ${
+                isDarkMode 
+                  ? 'border-gray-600 bg-gray-700/50' 
+                  : 'border-gray-200 bg-gray-50/50'
+              }`}>
+                <DarkModeToggle size="sm" />
+              </div>
+              
+              {/* Teams Button */}
+              <button
+                onClick={() => setShowTeamManagement(true)}
+                className="bg-purple-600 text-white px-2 sm:px-4 py-2 text-xs sm:text-sm rounded-lg hover:bg-purple-700 transition-colors shadow-md border border-purple-500"
               >
-                ⚙️ Profile
+                <span className="hidden sm:inline">👥 Teams</span>
+                <span className="sm:hidden">👥</span>
               </button>
               
+              {/* Share Button */}
+              <button
+                onClick={() => setShowDocumentSharing(true)}
+                className="bg-green-600 text-white px-2 sm:px-4 py-2 text-xs sm:text-sm rounded-lg hover:bg-green-700 transition-colors shadow-md border border-green-500"
+              >
+                <span className="hidden sm:inline">🔗 Share</span>
+                <span className="sm:hidden">🔗</span>
+              </button>
+              
+              {/* AI Chat Button */}
+              <button
+                onClick={() => setShowAIChatPanel(true)}
+                className="bg-gradient-to-r from-grammarly-blue to-purple-600 text-white px-2 sm:px-4 py-2 text-xs sm:text-sm rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-md border border-blue-400"
+              >
+                <span className="hidden sm:inline">💬 AI Chat</span>
+                <span className="sm:hidden">💬</span>
+              </button>
+              
+              {/* Analysis Button */}
+              <button
+                onClick={() => setShowAnalysisPanel(true)}
+                className="bg-gradient-to-r from-grammarly-green to-emerald-500 text-white px-2 sm:px-4 py-2 text-xs sm:text-sm rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all duration-200 shadow-md border border-green-400"
+              >
+                <span className="hidden sm:inline">📊 Analysis</span>
+                <span className="sm:hidden">📊</span>
+              </button>
+              
+              {/* Subscription Management for Mobile */}
+              {subscriptionType === 'premium' && (
+                <button
+                  onClick={() => setShowPricing(true)}
+                  className="sm:hidden bg-green-600 text-white px-2 py-2 text-xs rounded-lg hover:bg-green-700 transition-colors shadow-md border border-green-500"
+                  title="Manage Subscription"
+                >
+                  ⚙️
+                </button>
+              )}
+              
+              {/* Profile/Settings Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowProfileModal(true)}
+                  className={`p-2 rounded-lg transition-colors border shadow-sm ${
+                    isDarkMode 
+                      ? 'text-gray-300 hover:bg-gray-700 border-gray-600 bg-gray-700/50' 
+                      : 'text-gray-600 hover:bg-gray-100 border-gray-300 bg-gray-50'
+                  }`}
+                >
+                  <span className="text-lg">👤</span>
+                </button>
+              </div>
+              
+              {/* Logout Button */}
               <button
                 onClick={handleLogout}
-                className={`text-sm px-3 py-1.5 border rounded-lg transition-colors ${
+                className={`p-2 rounded-lg transition-colors border shadow-sm ${
                   isDarkMode 
-                    ? 'text-gray-300 hover:text-white border-gray-600 hover:bg-gray-700' 
-                    : 'text-gray-500 hover:text-gray-700 border-gray-300 hover:bg-gray-50'
+                    ? 'text-gray-300 hover:bg-gray-700 hover:text-red-400 border-gray-600 bg-gray-700/50' 
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-red-600 border-gray-300 bg-gray-50'
                 }`}
               >
-                Sign Out
+                <span className="text-lg">🚪</span>
               </button>
             </div>
           </div>
         </div>
+      </nav>
+
+      {/* Main Content */}
+      <div className="flex flex-col lg:flex-row">
+        {/* Sidebar */}
+        <div className={`w-full lg:w-80 h-48 lg:h-[calc(100vh-4rem)] flex-shrink-0 border-r-2 lg:overflow-hidden shadow-lg ${
+          isDarkMode 
+            ? 'border-gray-600 bg-gray-800/50' 
+            : 'border-gray-300 bg-gray-50/50'
+        }`}>
+          <DocumentSidebar />
+        </div>
         
-        {/* Editor */}
-        <TextEditor />
+        {/* Main Editor Area */}
+        <div className={`flex-1 flex flex-col border-l ${
+          isDarkMode 
+            ? 'border-gray-600' 
+            : 'border-gray-300'
+        }`}>
+          {/* Auto-save status */}
+          {saveStatus && (
+            <div className={`px-4 py-2 text-sm border-b-2 transition-colors ${
+              saveStatus === 'saving' 
+                ? isDarkMode ? 'bg-yellow-900/50 text-yellow-200 border-yellow-600' : 'bg-yellow-50 text-yellow-800 border-yellow-300'
+                : saveStatus === 'saved'
+                ? isDarkMode ? 'bg-green-900/50 text-green-200 border-green-600' : 'bg-green-50 text-green-800 border-green-300'
+                : isDarkMode ? 'bg-red-900/50 text-red-200 border-red-600' : 'bg-red-50 text-red-800 border-red-300'
+            }`}>
+              {saveStatus === 'saving' && '💾 Saving...'}
+              {saveStatus === 'saved' && '✅ All changes saved'}
+              {saveStatus === 'unsaved' && '❌ Unsaved changes'}
+            </div>
+          )}
+          
+          <div className={`flex-1 border-2 m-2 rounded-lg shadow-inner ${
+            isDarkMode 
+              ? 'border-gray-600 bg-gray-800/30' 
+              : 'border-gray-200 bg-white'
+          }`}>
+            <TextEditor />
+          </div>
+        </div>
       </div>
 
       {/* Analysis Panel */}
@@ -791,6 +855,42 @@ function App() {
         isOpen={showWritingSettings}
         onClose={() => setShowWritingSettings(false)}
         onSettingsChange={() => {}}
+      />
+
+      {/* Team Management Panel */}
+      <TeamManagementPanel
+        isOpen={showTeamManagement}
+        onClose={() => setShowTeamManagement(false)}
+      />
+
+      {/* Document Sharing Panel */}
+      <DocumentSharingPanel
+        isOpen={showDocumentSharing}
+        onClose={() => setShowDocumentSharing(false)}
+      />
+
+      {/* Pricing Panel */}
+      <PricingPanel
+        isOpen={showPricing}
+        onClose={() => setShowPricing(false)}
+      />
+
+      {/* Video Modal */}
+      <VideoModal
+        isOpen={showVideoModal}
+        onClose={() => setShowVideoModal(false)}
+        videoSrc="/demo-video.mp4"
+        title="StudyWrite Demo - AI Writing Assistant for Students"
+      />
+
+      {/* Upgrade Prompt */}
+      <UpgradePrompt
+        isOpen={showUpgradePrompt}
+        onClose={() => setShowUpgradePrompt(false)}
+        onUpgrade={() => {
+          setShowUpgradePrompt(false);
+          setShowPricing(true);
+        }}
       />
     </div>
   )

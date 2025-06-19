@@ -164,7 +164,7 @@ export function AIChatPanel({ isOpen, onClose }: AIChatPanelProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-end z-50">
-      <div className="bg-white w-96 h-full flex flex-col shadow-2xl">
+      <div className="bg-white w-full sm:w-96 min-h-screen lg:h-full flex flex-col shadow-2xl">
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 text-white">
           <div className="flex items-center justify-between">

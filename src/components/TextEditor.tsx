@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useDocumentStore } from '../store/useDocumentStore';
 import { useProfileStore } from '../store/useProfileStore';
 import { applySuggestion, getTextStats } from '../utils/grammarChecker';
@@ -9,10 +9,10 @@ import { defaultWritingSettings } from '../store/useProfileStore';
 import { VoiceNotesPanel } from './VoiceNotesPanel';
 import { PlagiarismPanel } from './PlagiarismPanel';
 import { DarkModeToggle } from './DarkModeToggle';
+import { PlainTextEditor } from './PlainTextEditor';
 import { useDarkModeStore } from '../store/useDarkModeStore';
 
 export function TextEditor() {
-  const editorRef = useRef<HTMLDivElement>(null);
   const { content, setContent, suggestions, setSuggestions, currentDocument } = useDocumentStore();
   const { profile } = useProfileStore();
   const { isDarkMode } = useDarkModeStore();
@@ -24,6 +24,21 @@ export function TextEditor() {
   const [currentWritingSettings, setCurrentWritingSettings] = useState<WritingSettings>(defaultWritingSettings);
   const [showVoiceNotes, setShowVoiceNotes] = useState(false);
   const [showPlagiarismCheck, setShowPlagiarismCheck] = useState(false);
+
+  // Check if current document is editable - all shared documents have full access
+  const isDocumentEditable = currentDocument && (!currentDocument.isShared || true);
+  
+  // Debug logging for permissions
+  useEffect(() => {
+    if (currentDocument) {
+      console.log('TextEditor: Current document permissions check:', {
+        id: currentDocument.id,
+        title: currentDocument.title,
+        isShared: currentDocument.isShared,
+        isDocumentEditable
+      });
+    }
+  }, [currentDocument, isDocumentEditable]);
 
   // Update writing settings when profile changes
   useEffect(() => {
@@ -69,92 +84,38 @@ export function TextEditor() {
   // Update content when currentDocument changes
   useEffect(() => {
     if (currentDocument) {
-      setContent(currentDocument.content);
-      // Sync with contentEditable div
-      if (editorRef.current && editorRef.current.innerHTML !== currentDocument.content.replace(/\n/g, '<br>')) {
-        editorRef.current.innerHTML = currentDocument.content.replace(/\n/g, '<br>');
+      console.log('Loading document:', {
+        id: currentDocument.id,
+        title: currentDocument.title,
+        contentPreview: currentDocument.content.substring(0, 100),
+        contentLength: currentDocument.content.length
+      });
+      
+      // Convert any HTML content to plain text
+      let plainText = currentDocument.content;
+      if (currentDocument.content.includes('<') && currentDocument.content.includes('>')) {
+        console.log('Converting HTML content to plain text');
+        plainText = currentDocument.content
+          .replace(/<\/p>/gi, '\n')        // End of paragraph = newline
+          .replace(/<p[^>]*>/gi, '')       // Remove opening p tags
+          .replace(/<br\s*\/?>/gi, '\n')   // <br> tags = newline
+          .replace(/<[^>]*>/g, '')         // Remove all other HTML tags
+          .replace(/&nbsp;/g, ' ')         // Convert non-breaking spaces
+          .replace(/&amp;/g, '&')          // Convert HTML entities
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .trim();
+        
+        // Clean up multiple consecutive newlines
+        plainText = plainText.replace(/\n\s*\n\s*\n/g, '\n\n').trim();
       }
+      
+      console.log('Setting plain text content:', plainText);
+      setContent(plainText);
     }
   }, [currentDocument, setContent]);
-
-  // Track if content is being updated programmatically
-  const [isUpdatingContent, setIsUpdatingContent] = useState(false);
-  
-  // Sync contentEditable when content changes from store (but not from user input)
-  useEffect(() => {
-    if (isUpdatingContent && editorRef.current && editorRef.current.innerText !== content) {
-      editorRef.current.innerHTML = content.replace(/\n/g, '<br>');
-      setIsUpdatingContent(false);
-    }
-  }, [content, isUpdatingContent]);
-
-  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
-    const newContent = e.currentTarget.innerText || '';
-    if (newContent !== content) {
-      setContent(newContent);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    // Handle Enter key for proper paragraph breaks
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        
-        // Insert line break
-        const br = document.createElement('br');
-        range.insertNode(br);
-        
-        // Move cursor after the break
-        range.setStartAfter(br);
-        range.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        
-        // Update content
-        if (editorRef.current) {
-          const newContent = editorRef.current.innerText || '';
-          setContent(newContent);
-        }
-      }
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const pasteData = e.clipboardData?.getData('text') || '';
-    
-    // Insert at current cursor position
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      range.deleteContents();
-      
-      // Create text node and insert
-      const textNode = document.createTextNode(pasteData);
-      range.insertNode(textNode);
-      
-      // Move cursor to end of pasted text
-      range.setStartAfter(textNode);
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      
-      // Update content from the DOM
-      if (editorRef.current) {
-        const newContent = editorRef.current.innerText || '';
-        setContent(newContent);
-      }
-    } else {
-      // Fallback
-      const newContent = content + pasteData;
-      setContent(newContent);
-      setIsUpdatingContent(true);
-    }
-  };
 
   const handleSuggestionClick = (suggestion: GrammarSuggestion) => {
     setSelectedSuggestion(suggestion);
@@ -162,26 +123,41 @@ export function TextEditor() {
   };
 
   const applySuggestionClick = (suggestion: GrammarSuggestion) => {
-    console.log('Applying suggestion:', suggestion);
+    console.log('=== APPLY SUGGESTION CLICKED ===');
+    console.log('Suggestion:', suggestion);
+    console.log('Current content before applying:', content);
+    console.log('isDocumentEditable:', isDocumentEditable);
+    console.log('Document:', document);
+    
+    // Check if document is editable
+    if (!isDocumentEditable) {
+      console.error('Document is not editable, cannot apply suggestion');
+      return;
+    }
     
     // Apply the suggestion to the content
     const newContent = applySuggestion(content, suggestion);
-    console.log('New content:', newContent);
+    console.log('New content after applying:', newContent);
+    console.log('Content changed:', newContent !== content);
     
-    // Update the content
-    setContent(newContent);
-    
-    // Remove the applied suggestion from the list
-    const updatedSuggestions = suggestions.filter(s => s.id !== suggestion.id);
-    setSuggestions(updatedSuggestions);
-    
-    // Clear the selected suggestion
-    setSelectedSuggestion(null);
-    setHighlightedSuggestionId(null);
-    
-    // Focus back on textarea
-    if (editorRef.current) {
-      editorRef.current.focus();
+    if (newContent !== content) {
+      console.log('Updating content and state...');
+      
+      // Update the content
+      setContent(newContent);
+      
+      // Remove the applied suggestion from the list
+      const updatedSuggestions = suggestions.filter(s => s.id !== suggestion.id);
+      setSuggestions(updatedSuggestions);
+      console.log('Updated suggestions count:', updatedSuggestions.length);
+      
+      // Clear the selected suggestion
+      setSelectedSuggestion(null);
+      setHighlightedSuggestionId(null);
+      
+      console.log('Successfully applied suggestion and updated state');
+    } else {
+      console.warn('Suggestion did not change the content');
     }
   };
 
@@ -206,119 +182,43 @@ export function TextEditor() {
   };
 
   const handleInsertTranscript = (transcript: string) => {
-    if (editorRef.current) {
-      // Insert text at current cursor position
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        
-        // Create text node and insert
-        const textNode = document.createTextNode((content ? ' ' : '') + transcript);
-        range.insertNode(textNode);
-        
-        // Move cursor to end of inserted text
-        range.setStartAfter(textNode);
-        range.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        
-        // Update content from the DOM
-        const newContent = editorRef.current.innerText || '';
-        setContent(newContent);
-      } else {
-        // Fallback: append to end
-        const newContent = content + (content ? ' ' : '') + transcript;
-        setContent(newContent);
-        setIsUpdatingContent(true);
-        
-        // Focus and move cursor to end
-        setTimeout(() => {
-          if (editorRef.current) {
-            editorRef.current.focus();
-            const range = document.createRange();
-            const selection = window.getSelection();
-            range.selectNodeContents(editorRef.current);
-            range.collapse(false);
-            selection?.removeAllRanges();
-            selection?.addRange(range);
-          }
-        }, 0);
-      }
+    if (transcript.trim()) {
+      // Insert transcript at the end of current content
+      const newContent = content + (content ? ' ' : '') + transcript;
+      setContent(newContent);
     }
     
     setShowVoiceNotes(false);
-  };
-
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-    const suggestionId = target.getAttribute('data-suggestion-id');
-    
-    if (suggestionId) {
-      const suggestion = suggestions.find(s => s.id === suggestionId);
-      if (suggestion) {
-        handleSuggestionClick(suggestion);
-      }
-    }
-  };
-
-  const renderHighlightedText = () => {
-    if (!content) return '';
-    
-    let result = content;
-    const sortedSuggestions = [...suggestions].sort((a, b) => b.start - a.start);
-    
-    sortedSuggestions.forEach((suggestion) => {
-      const before = result.substring(0, suggestion.start);
-      const highlighted = result.substring(suggestion.start, suggestion.end);
-      const after = result.substring(suggestion.end);
-      
-      // Only background colors, no text styling
-      const colorClass = {
-        grammar: 'bg-red-100',
-        spelling: 'bg-red-100', 
-        style: 'bg-blue-100',
-        readability: 'bg-orange-100'
-      }[suggestion.type];
-      
-      const isHovered = highlightedSuggestionId === suggestion.id;
-      const hoverClass = isHovered ? 'bg-yellow-200' : '';
-      
-      result = before + 
-        `<span class="${colorClass} ${hoverClass} rounded-sm" data-suggestion-id="${suggestion.id}">${highlighted}</span>` + 
-        after;
-    });
-    
-    return result.replace(/\n/g, '<br>');
-  };
-
-  const renderClickableText = () => {
-    if (!content) return '';
-    
-    let result = content;
-    const sortedSuggestions = [...suggestions].sort((a, b) => b.start - a.start);
-    
-    sortedSuggestions.forEach((suggestion) => {
-      const before = result.substring(0, suggestion.start);
-      const highlighted = result.substring(suggestion.start, suggestion.end);
-      const after = result.substring(suggestion.end);
-      
-      result = before + 
-        `<span class="cursor-pointer" data-suggestion-id="${suggestion.id}">${highlighted}</span>` + 
-        after;
-    });
-    
-    return result.replace(/\n/g, '<br>');
   };
 
   const stats = getTextStats(content);
   const errorCount = suggestions.filter(s => s.type === 'spelling' || s.type === 'grammar').length;
   const suggestionCount = suggestions.filter(s => s.type === 'style' || s.type === 'readability').length;
 
+  // Handle plain text content changes
+  const handlePlainTextChange = (newPlainContent: string) => {
+    console.log('Plain text change:', {
+      newContent: newPlainContent,
+      contentLines: newPlainContent.split('\n').length
+    });
+    
+    // Update the plain text content for AI analysis
+    setContent(newPlainContent);
+    
+    // Update the document store with plain text content
+    const { updateDocument } = useDocumentStore.getState();
+    if (currentDocument) {
+      updateDocument(currentDocument.id, { 
+        content: newPlainContent, // Save plain text content
+        updatedAt: new Date()
+      });
+    }
+  };
+
   return (
-    <div className="flex-1 flex bg-gray-50">
+    <div className={`flex-1 flex transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Main Editor Area */}
-      <div className="flex-1 flex flex-col h-full">
+      <div className="flex-1 flex flex-col">
         {/* Editor Header */}
         <div className={`border-b shadow-sm transition-colors duration-300 ${
           isDarkMode 
@@ -559,68 +459,28 @@ export function TextEditor() {
 
         {/* Editor Container */}
         <div className="flex-1 p-6">
-          <div className={`relative w-full h-full rounded-xl shadow-sm border overflow-hidden transition-colors duration-300 ${
-            isDarkMode 
-              ? 'bg-gray-900 border-gray-700' 
-              : 'bg-white border-gray-200'
-          }`}>
-            {/* Suggestion highlights background layer */}
-            {suggestions.length > 0 && (
-              <div
-                className="absolute inset-0 p-8 pointer-events-none whitespace-pre-wrap overflow-hidden z-5"
-                style={{ 
-                  lineHeight: '1.7',
-                  fontSize: '16px',
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                  color: 'transparent'
-                }}
-                dangerouslySetInnerHTML={{ __html: renderHighlightedText() }}
-              />
-            )}
-
-            {/* Main text area - always visible */}
-            <div
-              ref={editorRef}
-              className={`w-full h-full p-8 bg-transparent resize-none outline-none leading-relaxed relative z-10 transition-colors duration-300 ${
-                isDarkMode ? 'text-gray-100' : 'text-gray-900'
-              }`}
-              style={{ 
-                lineHeight: '1.7',
-                fontSize: '16px',
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-              }}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={handleInput}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              data-placeholder={!content ? "Start typing here..." : ""}
+          <div className="relative">
+            {/* Plain Text Editor */}
+            <PlainTextEditor
+              content={content}
+              onChange={handlePlainTextChange}
+              placeholder={!isDocumentEditable ? "This document is read-only" : "Start typing here..."}
+              disabled={!isDocumentEditable}
+              suggestions={suggestions}
+              onSuggestionClick={handleSuggestionClick}
+              highlightedSuggestionId={highlightedSuggestionId}
             />
 
-            {/* Invisible click layer for suggestion interaction */}
-            {suggestions.length > 0 && (
-              <div
-                className="absolute inset-0 p-8 pointer-events-auto whitespace-pre-wrap overflow-hidden z-15"
-                style={{ 
-                  lineHeight: '1.7',
-                  fontSize: '16px',
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                  color: 'transparent',
-                  background: 'transparent'
-                }}
-                onClick={handleOverlayClick}
-                dangerouslySetInnerHTML={{ __html: renderClickableText() }}
-              />
+            {/* Read-only indicator */}
+            {!isDocumentEditable && currentDocument?.isShared && (
+              <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-medium transition-colors z-30 ${
+                isDarkMode 
+                  ? 'bg-yellow-900/50 text-yellow-300 border border-yellow-700' 
+                  : 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+              }`}>
+                👁️ Read-only
+              </div>
             )}
-
-            {/* Placeholder styling */}
-            <style>{`
-              [data-placeholder]:empty:before {
-                content: attr(data-placeholder);
-                color: #9ca3af;
-                pointer-events: none;
-              }
-            `}</style>
           </div>
         </div>
 
@@ -689,11 +549,15 @@ export function TextEditor() {
               
               <div className="flex space-x-3">
                 <button
-                  onClick={() => applySuggestionClick(selectedSuggestion)}
-                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                  onClick={(e) => {
+                    console.log('Apply button clicked in modal!', e);
+                    applySuggestionClick(selectedSuggestion);
+                  }}
+                  disabled={!isDocumentEditable}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                     isDarkMode 
-                      ? 'bg-green-600 text-white hover:bg-green-700' 
-                      : 'bg-grammarly-green text-white hover:bg-green-600'
+                      ? 'bg-green-600 text-white hover:bg-green-700 disabled:hover:bg-green-600' 
+                      : 'bg-grammarly-green text-white hover:bg-green-600 disabled:hover:bg-grammarly-green'
                   }`}
                 >
                   ✅ Apply Suggestion
@@ -716,43 +580,47 @@ export function TextEditor() {
 
       {/* Suggestions Sidebar */}
       {(suggestions.length > 0 || !suggestionsEnabled) && (
-        <div className={`w-80 border-l flex flex-col shadow-lg transition-colors ${
+        <div className={`w-full lg:w-80 border-l-2 flex flex-col shadow-xl transition-colors ${
           isDarkMode 
-            ? 'bg-gray-800 border-gray-700' 
-            : 'bg-white border-gray-200'
+            ? 'bg-gray-800 border-gray-600' 
+            : 'bg-white border-gray-300'
         }`}>
-          <div className={`p-4 border-b transition-colors ${
+          <div className={`p-4 border-b-2 transition-colors ${
             isDarkMode 
-              ? 'border-gray-700 bg-gray-750' 
-              : 'border-gray-200 bg-gray-50'
+              ? 'border-gray-600 bg-gray-700/50' 
+              : 'border-gray-300 bg-gray-50/50'
           }`}>
-            <h3 className={`text-lg font-semibold flex items-center transition-colors ${
-              isDarkMode ? 'text-white' : 'text-gray-700'
+            <div className={`p-3 rounded-lg border ${
+              isDarkMode ? 'border-gray-600 bg-gray-700/30' : 'border-gray-200 bg-white/50'
             }`}>
-              <span className="text-xl mr-2">🤖</span>
-              AI Writing Assistant
-            </h3>
-            <p className={`text-sm mt-1 transition-colors ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-600'
-            }`}>
-              {!suggestionsEnabled ? (
-                <span className={`transition-colors ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`}>AI suggestions are turned off</span>
-              ) : isAnalyzing ? (
-                <span className="flex items-center">
-                  <div className={`animate-spin rounded-full h-3 w-3 border-2 border-t-transparent mr-2 ${
-                    isDarkMode ? 'border-blue-400' : 'border-blue-600'
-                  }`}></div>
-                  Analyzing text...
-                </span>
-              ) : (
-                `${suggestions.length} suggestion${suggestions.length !== 1 ? 's' : ''} found`
-              )}
-            </p>
+              <h3 className={`text-lg font-semibold flex items-center transition-colors ${
+                isDarkMode ? 'text-white' : 'text-gray-700'
+              }`}>
+                <span className="text-xl mr-2">🤖</span>
+                AI Writing Assistant
+              </h3>
+              <p className={`text-sm mt-1 transition-colors ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                {!suggestionsEnabled ? (
+                  <span className={`transition-colors ${isDarkMode ? 'text-orange-400' : 'text-orange-600'}`}>AI suggestions are turned off</span>
+                ) : isAnalyzing ? (
+                  <span className="flex items-center">
+                    <div className={`animate-spin rounded-full h-3 w-3 border-2 border-t-transparent mr-2 ${
+                      isDarkMode ? 'border-blue-400' : 'border-blue-600'
+                    }`}></div>
+                    Analyzing text...
+                  </span>
+                ) : (
+                  `${suggestions.length} suggestion${suggestions.length !== 1 ? 's' : ''} found`
+                )}
+              </p>
+            </div>
             {suggestionsEnabled && (
-              <div className={`mt-2 text-xs p-2 rounded transition-colors ${
+              <div className={`mt-2 text-xs p-2 rounded border transition-colors ${
                 isDarkMode 
-                  ? 'text-blue-300 bg-blue-900/30' 
-                  : 'text-blue-600 bg-blue-50'
+                  ? 'text-blue-300 bg-blue-900/30 border-blue-600' 
+                  : 'text-blue-600 bg-blue-50 border-blue-200'
               }`}>
                 💡 Powered by OpenAI for intelligent writing assistance
               </div>
@@ -761,8 +629,8 @@ export function TextEditor() {
           
           {!suggestionsEnabled ? (
             <div className="flex-1 flex items-center justify-center p-8">
-              <div className={`text-center transition-colors ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              <div className={`text-center p-6 rounded-lg border transition-colors ${
+                isDarkMode ? 'text-gray-400 border-gray-600 bg-gray-700/30' : 'text-gray-500 border-gray-200 bg-gray-50'
               }`}>
                 <div className="text-4xl mb-3">🤖</div>
                 <p className="text-sm mb-2">AI suggestions are disabled</p>
@@ -773,8 +641,8 @@ export function TextEditor() {
             </div>
           ) : suggestions.length === 0 ? (
             <div className="flex-1 flex items-center justify-center p-8">
-              <div className={`text-center transition-colors ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              <div className={`text-center p-6 rounded-lg border transition-colors ${
+                isDarkMode ? 'text-gray-400 border-gray-600 bg-gray-700/30' : 'text-gray-500 border-gray-200 bg-gray-50'
               }`}>
                 <div className="text-4xl mb-3">✨</div>
                 <p className="text-sm mb-2">{content.trim() ? 'Great writing!' : 'Start typing to get AI suggestions'}</p>
@@ -784,18 +652,18 @@ export function TextEditor() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-96 lg:max-h-none">
               {suggestions.map((suggestion) => (
                 <div
                   key={suggestion.id}
-                  className={`p-4 border rounded-lg cursor-pointer transition-all duration-200 ${
+                  className={`p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 shadow-md ${
                     highlightedSuggestionId === suggestion.id 
                       ? isDarkMode 
-                        ? 'border-blue-400 bg-blue-900/30 shadow-md' 
-                        : 'border-blue-400 bg-blue-50 shadow-md'
+                        ? 'border-blue-400 bg-blue-900/30 shadow-lg' 
+                        : 'border-blue-400 bg-blue-50 shadow-lg'
                       : isDarkMode 
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700' 
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 bg-gray-700/30' 
+                        : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50 bg-white/50'
                   }`}
                   onClick={() => handleSuggestionClick(suggestion)}
                   onMouseEnter={() => handleSuggestionHover(suggestion.id)}
@@ -803,24 +671,24 @@ export function TextEditor() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center space-x-2">
-                      <div className={`w-3 h-3 rounded-full ${
+                      <div className={`w-3 h-3 rounded-full border ${
                         suggestion.type === 'spelling' || suggestion.type === 'grammar' 
-                          ? 'bg-red-500' 
+                          ? 'bg-red-500 border-red-400' 
                           : suggestion.type === 'style' 
-                          ? 'bg-blue-500' 
-                          : 'bg-orange-500'
+                          ? 'bg-blue-500 border-blue-400' 
+                          : 'bg-orange-500 border-orange-400'
                       }`} />
                       <span className={`text-xs font-semibold uppercase tracking-wide transition-colors ${
                         isDarkMode ? 'text-gray-400' : 'text-gray-600'
                       }`}>
                         {suggestion.type}
                       </span>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
+                      <span className={`text-xs px-2 py-1 rounded-full border ${
                         suggestion.severity === 'high' 
-                          ? isDarkMode ? 'bg-red-900/50 text-red-300' : 'bg-red-100 text-red-700'
+                          ? isDarkMode ? 'bg-red-900/50 text-red-300 border-red-600' : 'bg-red-100 text-red-700 border-red-200'
                           : suggestion.severity === 'medium'
-                          ? isDarkMode ? 'bg-orange-900/50 text-orange-300' : 'bg-orange-100 text-orange-700'
-                          : isDarkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700'
+                          ? isDarkMode ? 'bg-orange-900/50 text-orange-300 border-orange-600' : 'bg-orange-100 text-orange-700 border-orange-200'
+                          : isDarkMode ? 'bg-blue-900/50 text-blue-300 border-blue-600' : 'bg-blue-100 text-blue-700 border-blue-200'
                       }`}>
                         {suggestion.severity}
                       </span>
@@ -831,8 +699,8 @@ export function TextEditor() {
                         e.stopPropagation();
                         dismissSuggestion(suggestion.id);
                       }}
-                      className={`transition-colors ${
-                        isDarkMode ? 'text-gray-400 hover:text-red-400' : 'text-gray-400 hover:text-red-500'
+                      className={`p-1 rounded border transition-colors ${
+                        isDarkMode ? 'text-gray-400 hover:text-red-400 border-gray-600 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-500 border-gray-300 hover:bg-red-50'
                       }`}
                       title="Dismiss suggestion"
                     >
@@ -840,14 +708,18 @@ export function TextEditor() {
                     </button>
                   </div>
                   
-                  <p className={`text-sm mb-2 transition-colors ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  <div className={`p-2 rounded border mb-2 transition-colors ${
+                    isDarkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'
                   }`}>
-                    {suggestion.message}
-                  </p>
+                    <p className={`text-sm transition-colors ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      {suggestion.message}
+                    </p>
+                  </div>
                   
-                  <div className={`text-xs transition-colors ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  <div className={`text-xs p-2 rounded border transition-colors ${
+                    isDarkMode ? 'text-gray-400 bg-gray-800/50 border-gray-600' : 'text-gray-500 bg-white border-gray-200'
                   }`}>
                     <span className="font-medium">Text:</span> "{suggestion.original}"
                     {suggestion.suggestion && suggestion.suggestion !== suggestion.original && (
@@ -861,13 +733,15 @@ export function TextEditor() {
                   {suggestion.suggestion && suggestion.suggestion !== suggestion.original && (
                     <button
                       onClick={(e) => {
+                        console.log('Apply button clicked in sidebar!', e, suggestion);
                         e.stopPropagation();
                         applySuggestionClick(suggestion);
                       }}
-                      className={`mt-3 w-full py-2 px-3 rounded text-xs font-medium transition-colors ${
+                      disabled={!isDocumentEditable}
+                      className={`mt-3 w-full py-2 px-3 rounded border text-xs font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
                         isDarkMode 
-                          ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                          ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600 border-blue-500' 
+                          : 'bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600 border-blue-400'
                       }`}
                     >
                       ✨ Apply AI Suggestion

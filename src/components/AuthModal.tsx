@@ -13,12 +13,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
     setLoading(true);
 
     if (isSignUp && password !== confirmPassword) {
@@ -34,7 +36,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
       if (result.error) {
         setError(result.error.message);
+      } else if (isSignUp && 'message' in result && typeof result.message === 'string') {
+        // Show verification message for sign up
+        setSuccessMessage(result.message);
+        setEmail('');
+        setPassword('');
+        setConfirmPassword('');
       } else {
+        // Sign in successful
         onClose();
         setEmail('');
         setPassword('');
@@ -112,6 +121,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           {error && (
             <div className="text-red-600 text-sm bg-red-50 p-2 rounded">
               {error}
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="text-green-600 text-sm bg-green-50 p-2 rounded">
+              {successMessage}
             </div>
           )}
 
