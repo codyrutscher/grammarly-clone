@@ -1,3 +1,6 @@
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600&display=swap');
+
 #root {
   max-width: 1280px;
   margin: 0 auto;
@@ -39,4 +42,35 @@
 
 .read-the-docs {
   color: #888;
+}
+
+/* Text Editor Styles */
+.text-editor {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.75;
+  letter-spacing: 0.015em;
+}
+
+.text-editor::placeholder {
+  font-family: 'Quicksand', sans-serif;
+  opacity: 0.6;
+}
+
+/* Add a subtle transition for interactive feel */
+.text-editor {
+  transition: all 0.2s ease;
+}
+
+.text-editor:focus {
+  letter-spacing: 0.018em;
+}
+
+/* Custom selection color for better interaction feedback */
+.text-editor::selection {
+  background-color: rgba(59, 130, 246, 0.2); /* blue-500 with opacity */
+}
+
+.dark .text-editor::selection {
+  background-color: rgba(96, 165, 250, 0.3); /* blue-400 with opacity */
 }

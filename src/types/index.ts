@@ -29,7 +29,33 @@ export interface Document {
 export type AcademicStyle = 'mla' | 'apa' | 'chicago' | 'harvard' | 'none'
 export type LanguageVariant = 'us' | 'uk' | 'au' | 'ca'
 export type CheckingMode = 'standard' | 'speed' | 'comprehensive'
-export type WritingMode = 'academic' | 'business' | 'casual' | 'creative'
+export type WritingMode = {
+  id: string;
+  name: string;
+  description: string;
+  rules: {
+    tone: {
+      formality: 'casual' | 'neutral' | 'formal';
+      emotion: 'objective' | 'persuasive' | 'engaging';
+    };
+    style: {
+      sentenceLength: 'short' | 'medium' | 'long';
+      vocabulary: 'simple' | 'moderate' | 'advanced';
+      allowPassiveVoice: boolean;
+      technicalTerms: boolean;
+    };
+    structure: {
+      paragraphLength: 'short' | 'medium' | 'long';
+      requireTopicSentences: boolean;
+      requireTransitions: boolean;
+    };
+    citations: {
+      required: boolean;
+      style: 'APA' | 'MLA' | 'Chicago' | 'none';
+    };
+  };
+  customRules?: Record<string, any>;
+};
 
 export interface WritingSettings {
   academicStyle: AcademicStyle

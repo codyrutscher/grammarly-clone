@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { UserProfile, UserPreferences, WritingSettings } from '../types'
+import type { UserProfile, UserPreferences, WritingSettings, WritingMode } from '../types'
 
 interface ProfileStore {
   profile: UserProfile | null
@@ -36,13 +36,40 @@ const defaultPreferences: UserPreferences = {
   }
 }
 
+const defaultWritingMode: WritingMode = {
+  id: 'academic',
+  name: 'Academic Writing',
+  description: 'Formal academic style and structure',
+  rules: {
+    tone: {
+      formality: 'formal',
+      emotion: 'objective'
+    },
+    style: {
+      sentenceLength: 'medium',
+      vocabulary: 'advanced',
+      allowPassiveVoice: true,
+      technicalTerms: true
+    },
+    structure: {
+      paragraphLength: 'medium',
+      requireTopicSentences: true,
+      requireTransitions: true
+    },
+    citations: {
+      required: true,
+      style: 'APA'
+    }
+  }
+};
+
 const defaultWritingSettings: WritingSettings = {
-  academicStyle: 'none',
+  academicStyle: 'apa',
   languageVariant: 'us',
   checkingMode: 'standard',
-  writingMode: 'academic',
+  writingMode: defaultWritingMode,
   criticalErrorsOnly: false
-}
+};
 
 export const useProfileStore = create<ProfileStore>((set, get) => ({
   profile: null,

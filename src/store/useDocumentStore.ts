@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { DocumentPermissions } from '../types';
+import type { DocumentPermissions, Suggestion } from '../types';
 
 export interface Document {
   id: string;
@@ -17,27 +17,16 @@ export interface Document {
   sharedDocumentId?: string; // ID of the sharedDocuments collection entry
 }
 
-export interface GrammarSuggestion {
-  id: string;
-  type: 'grammar' | 'spelling' | 'style' | 'readability';
-  start: number;
-  end: number;
-  original: string;
-  suggestion: string;
-  message: string;
-  severity: 'low' | 'medium' | 'high';
-}
-
 interface DocumentState {
   documents: Document[];
   currentDocument: Document | null;
   content: string;
-  suggestions: GrammarSuggestion[];
+  suggestions: Suggestion[];
   loading: boolean;
   setDocuments: (documents: Document[]) => void;
   setCurrentDocument: (document: Document | null) => void;
   setContent: (content: string) => void;
-  setSuggestions: (suggestions: GrammarSuggestion[]) => void;
+  setSuggestions: (suggestions: Suggestion[]) => void;
   setLoading: (loading: boolean) => void;
   addDocument: (document: Document) => void;
   updateDocument: (id: string, updates: Partial<Document>) => void;

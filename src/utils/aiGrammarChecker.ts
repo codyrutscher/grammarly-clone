@@ -1,5 +1,6 @@
 import type { GrammarSuggestion } from '../store/useDocumentStore';
-import type { WritingSettings } from '../types';
+import type { WritingSettings, WritingMode } from '../types';
+import { useSuggestionFeedbackStore } from '../store/useSuggestionFeedbackStore';
 
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 
@@ -13,9 +14,53 @@ interface OpenAISuggestion {
   end_pos: number;
 }
 
+export interface GrammarSuggestion {
+  id: string;
+  start: number;
+  end: number;
+  text: string;
+  replacement: string;
+  type: 'grammar' | 'style' | 'tone' | 'structure';
+  severity: 'error' | 'warning' | 'suggestion';
+  explanation: string;
+}
+
 // Generate system prompt based on writing settings
 function generateSystemPrompt(settings: WritingSettings): string {
   let basePrompt = `You are an expert writing assistant. Analyze the provided text and identify specific writing improvements.`;
+
+  // Add user feedback context
+  const feedbackStats = useSuggestionFeedbackStore.getState().getFeedbackStats();
+  
+  if (feedbackStats.commonAccepted.length > 0 || feedbackStats.commonRejected.length > 0) {
+    basePrompt += `\n\nBased on this user's history:`;
+    
+    if (feedbackStats.commonAccepted.length > 0) {
+      basePrompt += `\nThey typically accept suggestions like: ${feedbackStats.commonAccepted.slice(0, 5).join(', ')}`;
+    }
+    
+    if (feedbackStats.commonRejected.length > 0) {
+      basePrompt += `\nThey typically reject suggestions like: ${feedbackStats.commonRejected.slice(0, 5).join(', ')}`;
+    }
+    
+    // Add acceptance rates by type
+    const rates = feedbackStats.acceptanceRate;
+    if (Object.keys(rates).length > 0) {
+      basePrompt += `\n\nSuggestion acceptance rates by type:`;
+      Object.entries(rates).forEach(([type, rate]) => {
+        basePrompt += `\n- ${type}: ${Math.round(rate)}%`;
+      });
+      
+      // Adjust suggestion strategy based on acceptance rates
+      const highAcceptanceTypes = Object.entries(rates)
+        .filter(([, rate]) => rate > 70)
+        .map(([type]) => type);
+        
+      if (highAcceptanceTypes.length > 0) {
+        basePrompt += `\n\nPrioritize suggestions of types: ${highAcceptanceTypes.join(', ')} as they are more likely to be helpful to this user.`;
+      }
+    }
+  }
 
   // Add language variant specific instructions
   const languageInstructions = {
@@ -273,7 +318,38 @@ export async function checkTextWithAI(text: string, settings?: WritingSettings):
       }, {} as Record<string, number>)
     });
 
-    return suggestions.sort((a, b) => a.start - b.start);
+    // Filter suggestions based on user feedback patterns
+    const feedbackStats = useSuggestionFeedbackStore.getState().getFeedbackStats();
+    const uniqueSuggestions = [...new Set(suggestions)];
+    const personalizedSuggestions = uniqueSuggestions
+      .sort((a, b) => {
+        // Prioritize suggestion types with higher acceptance rates
+        const aRate = feedbackStats.acceptanceRate[a.type] || 50;
+        const bRate = feedbackStats.acceptanceRate[b.type] || 50;
+        return bRate - aRate;
+      })
+      .filter(suggestion => {
+        // Filter out suggestions similar to commonly rejected ones
+        const isCommonlyRejected = feedbackStats.commonRejected.some(
+          rejected => suggestion.suggestion.toLowerCase().includes(rejected.toLowerCase())
+        );
+        return !isCommonlyRejected;
+      });
+
+    console.log('Grammar Checker: Final results:', {
+      totalSuggestions: personalizedSuggestions.length,
+      uniqueSuggestions: uniqueSuggestions.length,
+      byType: uniqueSuggestions.reduce((acc, s) => {
+        acc[s.type] = (acc[s.type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+      bySeverity: uniqueSuggestions.reduce((acc, s) => {
+        acc[s.severity] = (acc[s.severity] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
+    });
+
+    return personalizedSuggestions as GrammarSuggestion[];
 
   } catch (error) {
     console.error('AI Grammar Checker: Error:', error);
@@ -380,4 +456,294 @@ export async function getAITextSuggestions(text: string, _context?: string): Pro
     console.error('Error getting AI text suggestions:', error);
     return [];
   }
+}
+
+export function checkGrammarAndStyle(text: string, mode: WritingMode | null): GrammarSuggestion[] {
+  const suggestions: GrammarSuggestion[] = [];
+
+  if (!text || !mode) return suggestions;
+
+  // Apply mode-specific rules
+  const { rules } = mode;
+
+  // Helper function to create a suggestion
+  const createSuggestion = (
+    id: string,
+    start: number,
+    end: number,
+    text: string,
+    replacement: string,
+    type: GrammarSuggestion['type'],
+    severity: GrammarSuggestion['severity'],
+    explanation: string
+  ): GrammarSuggestion => ({
+    id,
+    start,
+    end,
+    text,
+    replacement,
+    type,
+    severity,
+    explanation
+  });
+
+  // Check sentence length based on mode preferences
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  sentences.forEach((sentence, index) => {
+    const words = sentence.trim().split(/\s+/);
+    const isLong = words.length > 25;
+    const isShort = words.length < 8;
+
+    if (rules.style.sentenceLength === 'short' && isLong) {
+      suggestions.push(createSuggestion(
+        `sentence-length-${index}`,
+        text.indexOf(sentence),
+        text.indexOf(sentence) + sentence.length,
+        sentence,
+        sentence, // User needs to split this manually
+        'structure',
+        'warning',
+        'Consider breaking this long sentence into smaller ones for better readability.'
+      ));
+    } else if (rules.style.sentenceLength === 'long' && isShort) {
+      suggestions.push(createSuggestion(
+        `sentence-length-${index}`,
+        text.indexOf(sentence),
+        text.indexOf(sentence) + sentence.length,
+        sentence,
+        sentence, // User needs to expand this manually
+        'structure',
+        'suggestion',
+        'Consider expanding this sentence to provide more detail or combine it with another sentence.'
+      ));
+    }
+  });
+
+  // Check for passive voice if not allowed
+  if (!rules.style.allowPassiveVoice) {
+    const passivePattern = /\b(am|is|are|was|were|be|been|being)\s+(\w+ed|\w+en)\b/gi;
+    let match;
+    let passiveIndex = 0;
+    while ((match = passivePattern.exec(text)) !== null) {
+      suggestions.push(createSuggestion(
+        `passive-voice-${passiveIndex++}`,
+        match.index,
+        match.index + match[0].length,
+        match[0],
+        match[0], // User needs to rephrase this manually
+        'style',
+        'warning',
+        'Consider using active voice for more direct and engaging writing.'
+      ));
+    }
+  }
+
+  // Check vocabulary level
+  const complexWordPattern = /\b\w{12,}\b/g;
+  const simpleWordReplacements: Record<string, string> = {
+    'utilize': 'use',
+    'implement': 'use',
+    'facilitate': 'help',
+    'commence': 'start',
+    'terminate': 'end',
+    'endeavor': 'try',
+    'subsequent': 'next',
+    'demonstrate': 'show',
+    'initiate': 'start',
+    'finalize': 'finish'
+  };
+
+  if (rules.style.vocabulary === 'simple') {
+    // Flag complex words
+    let match;
+    let complexIndex = 0;
+    while ((match = complexWordPattern.exec(text)) !== null) {
+      suggestions.push(createSuggestion(
+        `complex-word-${complexIndex++}`,
+        match.index,
+        match.index + match[0].length,
+        match[0],
+        match[0], // User needs to choose a simpler word
+        'style',
+        'suggestion',
+        'Consider using a simpler word for better readability.'
+      ));
+    }
+
+    // Suggest simpler alternatives
+    Object.entries(simpleWordReplacements).forEach(([complex, simple], index) => {
+      const regex = new RegExp(`\\b${complex}\\b`, 'gi');
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        suggestions.push(createSuggestion(
+          `simple-word-${index}-${match.index}`,
+          match.index,
+          match.index + complex.length,
+          match[0],
+          simple,
+          'style',
+          'suggestion',
+          `Consider using "${simple}" instead of "${complex}" for simpler writing.`
+        ));
+      }
+    });
+  }
+
+  // Check formality level
+  const informalWords = ['stuff', 'things', 'like', 'kind of', 'sort of', 'lots of', 'tons of'];
+  if (rules.tone.formality === 'formal') {
+    informalWords.forEach((word, index) => {
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        suggestions.push(createSuggestion(
+          `informal-word-${index}-${match.index}`,
+          match.index,
+          match.index + word.length,
+          match[0],
+          match[0], // User needs to choose a more formal alternative
+          'tone',
+          'warning',
+          'Consider using more formal language.'
+        ));
+      }
+    });
+  }
+
+  // Check for topic sentences if required
+  if (rules.structure.requireTopicSentences) {
+    const paragraphs = text.split(/\n\s*\n/);
+    paragraphs.forEach((paragraph, index) => {
+      if (paragraph.trim().length > 0) {
+        const firstSentence = paragraph.split(/[.!?]+/)[0];
+        if (firstSentence.length < 10 || /^(However|Moreover|Furthermore|Therefore|Thus|Also)/.test(firstSentence)) {
+          suggestions.push(createSuggestion(
+            `topic-sentence-${index}`,
+            text.indexOf(paragraph),
+            text.indexOf(paragraph) + firstSentence.length,
+            firstSentence,
+            firstSentence, // User needs to write a proper topic sentence
+            'structure',
+            'warning',
+            'Consider starting the paragraph with a clear topic sentence that introduces the main idea.'
+          ));
+        }
+      }
+    });
+  }
+
+  // Check for transitions if required
+  if (rules.structure.requireTransitions) {
+    const transitionWords = ['however', 'therefore', 'furthermore', 'moreover', 'nevertheless', 'thus', 'consequently'];
+    const paragraphs = text.split(/\n\s*\n/);
+    paragraphs.forEach((paragraph, index) => {
+      if (index > 0 && paragraph.trim().length > 0) {
+        const hasTransition = transitionWords.some(word => 
+          new RegExp(`^${word}\\b`, 'i').test(paragraph.trim())
+        );
+        if (!hasTransition) {
+          suggestions.push(createSuggestion(
+            `transition-${index}`,
+            text.indexOf(paragraph),
+            text.indexOf(paragraph),
+            '',
+            '', // User needs to add a transition
+            'structure',
+            'suggestion',
+            'Consider adding a transition word or phrase to improve flow between paragraphs.'
+          ));
+        }
+      }
+    });
+  }
+
+  // Check paragraph length
+  const paragraphs = text.split(/\n\s*\n/);
+  paragraphs.forEach((paragraph, index) => {
+    const words = paragraph.trim().split(/\s+/);
+    const isLong = words.length > 150;
+    const isShort = words.length < 30;
+
+    if (rules.structure.paragraphLength === 'short' && isLong) {
+      suggestions.push(createSuggestion(
+        `paragraph-length-${index}`,
+        text.indexOf(paragraph),
+        text.indexOf(paragraph) + paragraph.length,
+        paragraph,
+        paragraph, // User needs to split this manually
+        'structure',
+        'warning',
+        'Consider breaking this long paragraph into smaller ones for better readability.'
+      ));
+    } else if (rules.structure.paragraphLength === 'long' && isShort) {
+      suggestions.push(createSuggestion(
+        `paragraph-length-${index}`,
+        text.indexOf(paragraph),
+        text.indexOf(paragraph) + paragraph.length,
+        paragraph,
+        paragraph, // User needs to expand this manually
+        'structure',
+        'suggestion',
+        'Consider expanding this paragraph or combining it with another one.'
+      ));
+    }
+  });
+
+  // Check citation format if required
+  if (rules.citations.required) {
+    const citationStyle = rules.citations.style;
+    const citationPatterns: Record<string, RegExp> = {
+      APA: /\([\w\s]+,\s+\d{4}\)/,
+      MLA: /\([\w\s]+\s+\d+\)/,
+      Chicago: /\d+\./
+    };
+
+    if (citationStyle !== 'none' && citationStyle in citationPatterns) {
+      const pattern = citationPatterns[citationStyle];
+      if (!pattern.test(text)) {
+        suggestions.push(createSuggestion(
+          'citation-missing',
+          text.length,
+          text.length,
+          '',
+          '',
+          'style',
+          'error',
+          `This document requires ${citationStyle} style citations.`
+        ));
+      }
+    }
+  }
+
+  return suggestions;
+}
+
+export function getWritingScore(text: string, mode: WritingMode | null): number {
+  if (!text || !mode) return 0;
+
+  const suggestions = checkGrammarAndStyle(text, mode);
+  const textLength = text.length;
+
+  // Calculate base score
+  let score = 100;
+
+  // Deduct points based on suggestion severity
+  suggestions.forEach(suggestion => {
+    switch (suggestion.severity) {
+      case 'error':
+        score -= 10;
+        break;
+      case 'warning':
+        score -= 5;
+        break;
+      case 'suggestion':
+        score -= 2;
+        break;
+    }
+  });
+
+  // Normalize score based on text length
+  const normalizedScore = Math.max(0, Math.min(100, score * (1 + Math.log10(textLength / 1000 + 1))));
+
+  return Math.round(normalizedScore);
 } 
