@@ -53,7 +53,22 @@ export const useDocumentStore = create<DocumentState>((set) => ({
   setDocuments: (documents) => set({ documents }),
   setCurrentDocument: (document) => set({ currentDocument: document }),
   setContent: (content) => set({ content }),
-  setSuggestions: (suggestions) => set({ suggestions }),
+  setSuggestions: (suggestions) => {
+    console.log('🏪 === DOCUMENT STORE: setSuggestions called ===');
+    console.log('📊 New suggestions:', {
+      count: suggestions.length,
+      ids: suggestions.map(s => s.id),
+      types: suggestions.map(s => s.type)
+    });
+    
+    if (suggestions.length === 0) {
+      console.log('❌ STORE: Suggestions being cleared! Stack trace:');
+      console.trace();
+    }
+    
+    console.log('🏪 === END DOCUMENT STORE setSuggestions ===\n');
+    set({ suggestions });
+  },
   setLoading: (loading) => set({ loading }),
   addDocument: (document) => set((state) => ({ 
     documents: [...state.documents, document] 

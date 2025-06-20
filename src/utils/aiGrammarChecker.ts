@@ -97,6 +97,12 @@ export async function checkTextWithAI(text: string, settings?: WritingSettings):
     return [];
   }
 
+  // Check if API key is configured
+  if (!OPENAI_API_KEY || OPENAI_API_KEY.trim() === '') {
+    console.warn('AI Grammar Checker: OpenAI API key not configured, returning empty suggestions');
+    return [];
+  }
+
   // Use default settings if none provided
   const defaultSettings: WritingSettings = {
     academicStyle: 'none',
@@ -116,6 +122,10 @@ export async function checkTextWithAI(text: string, settings?: WritingSettings):
 
   try {
     const systemPrompt = generateSystemPrompt(currentSettings);
+    
+    // Add timeout to prevent infinite loading
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -137,12 +147,28 @@ export async function checkTextWithAI(text: string, settings?: WritingSettings):
         ],
         max_tokens: currentSettings.checkingMode === 'speed' ? 1000 : 2000,
         temperature: 0.3
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorData = await response.text();
       console.error('OpenAI API error:', response.status, errorData);
+      
+      // Handle specific error cases
+      if (response.status === 401) {
+        console.error('AI Grammar Checker: Invalid API key');
+        return [];
+      } else if (response.status === 429) {
+        console.error('AI Grammar Checker: Rate limit exceeded');
+        return [];
+      } else if (response.status >= 500) {
+        console.error('AI Grammar Checker: OpenAI server error');
+        return [];
+      }
+      
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
@@ -159,32 +185,38 @@ export async function checkTextWithAI(text: string, settings?: WritingSettings):
     // Parse the JSON response
     let aiSuggestions: OpenAISuggestion[];
     try {
-      // Extract JSON from the response (in case there's extra text)
+      // Try to extract JSON from the response
       const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
-      const jsonString = jsonMatch ? jsonMatch[0] : aiResponse;
-      aiSuggestions = JSON.parse(jsonString);
+      if (jsonMatch) {
+        aiSuggestions = JSON.parse(jsonMatch[0]);
+      } else {
+        // If no JSON array found, try parsing the entire response
+        aiSuggestions = JSON.parse(aiResponse);
+      }
     } catch (parseError) {
-      console.error('Failed to parse OpenAI response as JSON:', parseError);
-      console.log('Attempting to extract suggestions from text response...');
-      
-      // Fallback: try to extract suggestions from a text response
+      console.warn('Failed to parse JSON response, trying text parsing:', parseError);
       return parseTextResponse(aiResponse, text);
     }
 
     if (!Array.isArray(aiSuggestions)) {
-      console.error('OpenAI response is not an array:', aiSuggestions);
+      console.warn('AI response is not an array, returning empty suggestions');
       return [];
     }
 
-    // Filter suggestions based on settings
-    let filteredSuggestions = aiSuggestions;
-    if (currentSettings.criticalErrorsOnly || currentSettings.checkingMode === 'speed') {
-      filteredSuggestions = aiSuggestions.filter(s => 
-        s.type === 'grammar' || 
-        s.type === 'spelling' || 
-        (s.type === 'readability' && s.severity === 'high')
-      );
-    }
+    console.log('AI Grammar Checker: Parsed suggestions:', aiSuggestions.length);
+
+    // Filter out invalid suggestions
+    const filteredSuggestions = aiSuggestions.filter(suggestion => {
+      return suggestion.original && 
+             suggestion.suggestion && 
+             typeof suggestion.start_pos === 'number' &&
+             typeof suggestion.end_pos === 'number' &&
+             suggestion.start_pos >= 0 &&
+             suggestion.end_pos <= text.length &&
+             suggestion.start_pos < suggestion.end_pos;
+    });
+
+    console.log('AI Grammar Checker: Filtered suggestions:', filteredSuggestions.length);
 
     // Convert OpenAI suggestions to our format
     const suggestions: GrammarSuggestion[] = filteredSuggestions
@@ -245,6 +277,16 @@ export async function checkTextWithAI(text: string, settings?: WritingSettings):
 
   } catch (error) {
     console.error('AI Grammar Checker: Error:', error);
+    
+    // Handle specific error types
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        console.error('AI Grammar Checker: Request timed out');
+      } else if (error.message.includes('fetch')) {
+        console.error('AI Grammar Checker: Network error');
+      }
+    }
+    
     return [];
   }
 }

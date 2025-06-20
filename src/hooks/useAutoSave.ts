@@ -3,7 +3,7 @@ import { useDocumentStore } from '../store/useDocumentStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { updateDocument } from '../utils/firebaseUtils';
 
-export function useAutoSave() {
+export function useAutoSave(setIsAutoSaving?: (saving: boolean) => void) {
   const { currentDocument, content, updateDocument: updateDocumentStore } = useDocumentStore();
   const { user } = useAuthStore();
   const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -44,6 +44,11 @@ export function useAutoSave() {
 
       isSaving.current = true;
       setSaveStatus('saving');
+      
+      // Set auto-saving flag if callback provided
+      if (setIsAutoSaving) {
+        setIsAutoSaving(true);
+      }
 
       try {
         const result = await updateDocument(currentDocument.id, { content });
@@ -72,6 +77,11 @@ export function useAutoSave() {
         // You might want to show a notification to the user here
       } finally {
         isSaving.current = false;
+        
+        // Reset auto-saving flag after a delay
+        if (setIsAutoSaving) {
+          setTimeout(() => setIsAutoSaving(false), 100);
+        }
       }
     }, 1500); // Reduced to 1.5 seconds for faster saving
 
@@ -80,7 +90,7 @@ export function useAutoSave() {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [content, currentDocument, updateDocumentStore, user]);
+  }, [content, currentDocument, updateDocumentStore, user, setIsAutoSaving]);
 
   // Save immediately when document changes or component unmounts
   useEffect(() => {
@@ -92,6 +102,11 @@ export function useAutoSave() {
         });
 
         setSaveStatus('saving');
+        
+        // Set auto-saving flag if callback provided
+        if (setIsAutoSaving) {
+          setIsAutoSaving(true);
+        }
 
         try {
           const result = await updateDocument(currentDocument.id, { content });
@@ -110,6 +125,11 @@ export function useAutoSave() {
         } catch (error) {
           console.error('Auto-save: Immediate save error:', error);
           setSaveStatus('unsaved');
+        } finally {
+          // Reset auto-saving flag after a delay
+          if (setIsAutoSaving) {
+            setTimeout(() => setIsAutoSaving(false), 100);
+          }
         }
       }
     };
@@ -120,7 +140,7 @@ export function useAutoSave() {
       }
       saveImmediately();
     };
-  }, [currentDocument?.id]);
+  }, [currentDocument?.id, setIsAutoSaving]);
 
   // Reset saved content when document changes
   useEffect(() => {

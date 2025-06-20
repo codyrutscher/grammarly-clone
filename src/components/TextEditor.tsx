@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDocumentStore } from '../store/useDocumentStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useProfileStore } from '../store/useProfileStore';
@@ -10,9 +10,9 @@ import type { WritingSettings } from '../types';
 import { defaultWritingSettings } from '../store/useProfileStore';
 import { VoiceNotesPanel } from './VoiceNotesPanel';
 import { PlagiarismPanel } from './PlagiarismPanel';
-import { DarkModeToggle } from './DarkModeToggle';
 import { PlainTextEditor } from './PlainTextEditor';
 import { useDarkModeStore } from '../store/useDarkModeStore';
+import { useAutoSave } from '../hooks/useAutoSave';
 
 export function TextEditor() {
   const { user } = useAuthStore();
@@ -29,6 +29,13 @@ export function TextEditor() {
   const [isCreatingDocument, setIsCreatingDocument] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [hasGeneratedSuggestions, setHasGeneratedSuggestions] = useState(false);
+  const [isApplyingSuggestion, setIsApplyingSuggestion] = useState(false);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const lastAutoSaveTime = useRef<number>(0);
+  const isProgrammaticUpdate = useRef<boolean>(false);
+  const lastAppliedSuggestionContent = useRef<string>('');
+  const suggestionApplicationTime = useRef<number>(0);
+  const currentDocumentId = useRef<string | null>(null);
 
   // Check if current document is editable - all shared documents have full access
   const isDocumentEditable = currentDocument && (!currentDocument.isShared || true);
@@ -65,13 +72,31 @@ export function TextEditor() {
       console.log('Starting manual AI text analysis with settings:', currentWritingSettings);
 
       try {
-        const newSuggestions = await checkTextWithAI(text, currentWritingSettings);
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise<GrammarSuggestion[]>((_, reject) => {
+          setTimeout(() => reject(new Error('Analysis timeout')), 45000); // 45 second timeout
+        });
+
+        const analysisPromise = checkTextWithAI(text, currentWritingSettings);
+        
+        const newSuggestions = await Promise.race([analysisPromise, timeoutPromise]);
+        
         console.log('AI analysis complete:', newSuggestions.length, 'suggestions');
         setSuggestions(newSuggestions);
         setHasGeneratedSuggestions(true);
       } catch (error) {
         console.error('Error analyzing text:', error);
+        
+        // Set empty suggestions but mark as generated to show "no issues found" message
         setSuggestions([]);
+        setHasGeneratedSuggestions(true);
+        
+        // Show user-friendly error message
+        if (error instanceof Error && error.message === 'Analysis timeout') {
+          console.warn('AI analysis timed out - this may be due to network issues or API limitations');
+        } else {
+          console.warn('AI analysis failed - this may be due to API configuration or network issues');
+        }
       } finally {
         setIsAnalyzing(false);
       }
@@ -82,12 +107,20 @@ export function TextEditor() {
   // Update content when currentDocument changes
   useEffect(() => {
     if (currentDocument) {
-      console.log('Loading document:', {
+      console.log('📄 Document change detected:', {
         id: currentDocument.id,
         title: currentDocument.title,
         contentPreview: currentDocument.content.substring(0, 100),
-        contentLength: currentDocument.content.length
+        contentLength: currentDocument.content.length,
+        previousDocumentId: currentDocumentId.current,
+        isNewDocument: currentDocumentId.current !== currentDocument.id
       });
+      
+      // Check if this is actually a new document
+      const isNewDocument = currentDocumentId.current !== currentDocument.id;
+      
+      // Update the tracked document ID
+      currentDocumentId.current = currentDocument.id;
       
       // Convert any HTML content to plain text
       let plainText = currentDocument.content;
@@ -110,10 +143,18 @@ export function TextEditor() {
         plainText = plainText.replace(/\n\s*\n\s*\n/g, '\n\n').trim();
       }
       
-      console.log('Setting plain text content:', plainText);
+      console.log('📝 Setting plain text content:', plainText);
       setContent(plainText);
-      setSuggestions([]); // Clear suggestions when switching documents
-      setHasGeneratedSuggestions(false); // Reset suggestion state for new document
+      
+      // ONLY clear suggestions when switching to a DIFFERENT document
+      // NOT when the same document is updated (e.g., during auto-save)
+      if (isNewDocument) {
+        console.log('📄 NEW DOCUMENT - clearing suggestions');
+        setSuggestions([]); // Clear suggestions when switching documents
+        setHasGeneratedSuggestions(false); // Reset suggestion state for new document
+      } else {
+        console.log('📄 SAME DOCUMENT UPDATE - preserving suggestions');
+      }
     }
   }, [currentDocument, setContent]);
 
@@ -152,6 +193,10 @@ export function TextEditor() {
       return;
     }
     
+    // Set flags to prevent clearing suggestions during application
+    setIsApplyingSuggestion(true);
+    isProgrammaticUpdate.current = true;
+    
     // Apply the suggestion to the content
     const newContent = applySuggestion(content, suggestion);
     console.log('New content after applying:', newContent);
@@ -160,11 +205,35 @@ export function TextEditor() {
     if (newContent !== content) {
       console.log('Updating content and state...');
       
-      // Update the content
-      setContent(newContent);
+      // Recalculate positions for remaining suggestions after text change
+      const appliedSuggestionLength = suggestion.suggestion.length;
+      const originalLength = suggestion.original.length;
+      const lengthDifference = appliedSuggestionLength - originalLength;
       
-      // Remove the applied suggestion from the list
-      const updatedSuggestions = suggestions.filter(s => s.id !== suggestion.id);
+      // Update positions of suggestions that come after the applied one
+      const updatedSuggestions = suggestions
+        .filter(s => s.id !== suggestion.id) // Remove applied suggestion
+        .map(s => {
+          // If this suggestion starts after the applied one, adjust its position
+          if (s.start > suggestion.end) {
+            return {
+              ...s,
+              start: s.start + lengthDifference,
+              end: s.end + lengthDifference
+            };
+          }
+          // If this suggestion overlaps with the applied one, remove it
+          else if (s.start < suggestion.end && s.end > suggestion.start) {
+            return null; // Will be filtered out
+          }
+          // If this suggestion is completely before the applied one, keep as is
+          else {
+            return s;
+          }
+        })
+        .filter((s): s is GrammarSuggestion => s !== null); // Remove null entries
+      
+      // Update suggestions FIRST, then content
       setSuggestions(updatedSuggestions);
       console.log('Updated suggestions count:', updatedSuggestions.length);
       
@@ -172,18 +241,47 @@ export function TextEditor() {
       setSelectedSuggestion(null);
       setHighlightedSuggestionId(null);
       
-      // Keep the suggestion state as "generated" to prevent auto-regeneration
-      // User will need to manually click "Generate Suggestions" for new analysis
+      // Track the suggestion application
+      lastAppliedSuggestionContent.current = newContent;
+      suggestionApplicationTime.current = Date.now();
+      
+      // Update the content programmatically AFTER updating suggestions
+      setContent(newContent);
+      
+      // Also update the document store directly
+      const { updateDocument } = useDocumentStore.getState();
+      if (currentDocument) {
+        updateDocument(currentDocument.id, { 
+          content: newContent,
+          updatedAt: new Date()
+        });
+      }
+      
+      // Reset flags after a delay to ensure the update propagates
+      setTimeout(() => {
+        setIsApplyingSuggestion(false);
+        isProgrammaticUpdate.current = false;
+      }, 300);
       
       console.log('Successfully applied suggestion and updated state');
     } else {
-      console.warn('Suggestion did not change the content');
+      console.warn('Suggestion did not change the content - this may be an advisory-only suggestion');
+      
+      // For advisory-only suggestions, just remove them from the list
+      const updatedSuggestions = suggestions.filter(s => s.id !== suggestion.id);
+      setSuggestions(updatedSuggestions);
+      setSelectedSuggestion(null);
+      setHighlightedSuggestionId(null);
+      setIsApplyingSuggestion(false);
+      isProgrammaticUpdate.current = false;
     }
   };
 
   const handleGenerateNewSuggestions = () => {
     if (content && content.trim().length > 0) {
-      console.log('Manually generating new suggestions');
+      console.log('Manually generating new suggestions - clearing existing ones first');
+      // Clear existing suggestions when user explicitly requests new analysis
+      setSuggestions([]);
       setHasGeneratedSuggestions(false); // Reset flag to allow new analysis
       analyzeText(content); // Force analysis
     }
@@ -228,29 +326,122 @@ export function TextEditor() {
 
   // Handle plain text content changes - this is user input
   const handlePlainTextChange = (newPlainContent: string) => {
-    console.log('Plain text change:', {
-      newContent: newPlainContent,
-      contentLines: newPlainContent.split('\n').length
+    const now = Date.now();
+    const timeSinceLastAutoSave = now - lastAutoSaveTime.current;
+    const timeSinceSuggestionApplication = now - suggestionApplicationTime.current;
+    
+    console.log('🔍 === PLAIN TEXT CHANGE DEBUG ===');
+    console.log('📝 Content Details:', {
+      newContentLength: newPlainContent.length,
+      currentContentLength: content.length,
+      newContentPreview: newPlainContent.substring(0, 100) + '...',
+      currentContentPreview: content.substring(0, 100) + '...',
+      contentChanged: newPlainContent !== content,
+      lengthDiff: Math.abs(newPlainContent.length - content.length)
     });
     
-    // Update the plain text content
+    console.log('🏃 State Flags:', {
+      isApplyingSuggestion: isApplyingSuggestion,
+      isAutoSaving: isAutoSaving,
+      isProgrammaticUpdate: isProgrammaticUpdate.current,
+      timeSinceLastAutoSave: timeSinceLastAutoSave,
+      timeSinceSuggestionApplication: timeSinceSuggestionApplication
+    });
+    
+    console.log('💡 Suggestions State:', {
+      currentSuggestionsCount: suggestions.length,
+      hasGeneratedSuggestions: hasGeneratedSuggestions,
+      suggestionsIds: suggestions.map(s => s.id),
+      isLastAppliedContent: newPlainContent === lastAppliedSuggestionContent.current
+    });
+    
+    // Always update the content
+    console.log('📝 Updating content state...');
     setContent(newPlainContent);
     
-    // Clear suggestions when content changes - user must manually regenerate
-    if (newPlainContent !== content) {
-      setSuggestions([]);
+    // NEVER automatically clear suggestions - let the user decide when to regenerate
+    // Suggestions will only be cleared when:
+    // 1. User clicks "Generate Suggestions" button (handleGenerateNewSuggestions)
+    // 2. User switches to a different document
+    // 3. User applies a suggestion (which removes that specific suggestion)
+    
+    console.log('✅ PRESERVING ALL SUGGESTIONS - Never auto-clear, user controls when to regenerate');
+    console.log('📊 Suggestions after content update:', suggestions.length);
+    
+    // Only reset the generated flag if there are no suggestions (for fresh analysis)
+    if (suggestions.length === 0 && newPlainContent !== content) {
+      console.log('🔄 Resetting hasGeneratedSuggestions flag (no suggestions exist)');
       setHasGeneratedSuggestions(false);
     }
     
-    // Update the document store with plain text content
-    const { updateDocument } = useDocumentStore.getState();
-    if (currentDocument) {
-      updateDocument(currentDocument.id, { 
-        content: newPlainContent, // Save plain text content
-        updatedAt: new Date()
-      });
+    // Update the document store (only if not already updated during suggestion application)
+    const isFromSuggestionApplication = 
+      newPlainContent === lastAppliedSuggestionContent.current ||
+      timeSinceSuggestionApplication < 1000;
+      
+    console.log('💾 Document Store Update Check:', {
+      shouldUpdate: !isApplyingSuggestion && !isFromSuggestionApplication,
+      isApplyingSuggestion,
+      isFromSuggestionApplication,
+      currentDocumentId: currentDocument?.id
+    });
+      
+    if (!isApplyingSuggestion && !isFromSuggestionApplication) {
+      const { updateDocument } = useDocumentStore.getState();
+      if (currentDocument) {
+        console.log('💾 Updating document store...');
+        updateDocument(currentDocument.id, { 
+          content: newPlainContent,
+          updatedAt: new Date()
+        });
+      }
     }
+    
+    console.log('🔍 === END PLAIN TEXT CHANGE DEBUG ===\n');
   };
+
+  // Auto-save functionality with enhanced tracking
+  const handleAutoSaveStateChange = useCallback((saving: boolean) => {
+    console.log('Auto-save state change:', saving);
+    setIsAutoSaving(saving);
+    
+    if (saving) {
+      lastAutoSaveTime.current = Date.now();
+    } else {
+      // Keep the flag set for a bit longer to prevent clearing suggestions
+      setTimeout(() => {
+        // Only reset if no new auto-save has started
+        if (Date.now() - lastAutoSaveTime.current > 500) {
+          setIsAutoSaving(false);
+        }
+      }, 1000);
+    }
+  }, []);
+
+  const { saveStatus } = useAutoSave(handleAutoSaveStateChange);
+  
+  // Log save status for debugging (prevents TypeScript unused variable warning)
+  useEffect(() => {
+    console.log('Auto-save status:', saveStatus);
+  }, [saveStatus]);
+
+  // Debug: Track suggestions changes
+  useEffect(() => {
+    console.log('🔍 === SUGGESTIONS STATE CHANGE ===');
+    console.log('💡 New suggestions state:', {
+      count: suggestions.length,
+      ids: suggestions.map(s => s.id),
+      types: suggestions.map(s => s.type),
+      hasGeneratedSuggestions: hasGeneratedSuggestions
+    });
+    
+    if (suggestions.length === 0) {
+      console.log('❌ ALL SUGGESTIONS CLEARED! Stack trace:');
+      console.trace();
+    }
+    
+    console.log('🔍 === END SUGGESTIONS STATE CHANGE ===\n');
+  }, [suggestions, hasGeneratedSuggestions]);
 
   // If no document is selected, show the "Create New Document" interface
   if (!currentDocument) {
@@ -385,11 +576,8 @@ export function TextEditor() {
               </div>
             </div>
             
-            {/* AI Suggestions Toggle & Dark Mode - Always Visible */}
+            {/* AI Suggestions Toggle - Always Visible */}
             <div className="flex items-center space-x-6">
-              {/* Dark Mode Toggle */}
-              <DarkModeToggle size="sm" />
-              
               {/* AI Suggestions Toggle */}
               <div className="flex items-center space-x-3">
                 <span className={`text-sm transition-colors ${
@@ -632,20 +820,33 @@ export function TextEditor() {
               </div>
               
               <div className="flex space-x-3">
-                <button
-                  onClick={(e) => {
-                    console.log('Apply button clicked in modal!', e);
-                    applySuggestionClick(selectedSuggestion);
-                  }}
-                  disabled={!isDocumentEditable}
-                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                    isDarkMode 
-                      ? 'bg-green-600 text-white hover:bg-green-700 disabled:hover:bg-green-600' 
-                      : 'bg-grammarly-green text-white hover:bg-green-600 disabled:hover:bg-grammarly-green'
-                  }`}
-                >
-                  ✅ Apply Suggestion
-                </button>
+                {selectedSuggestion.suggestion && 
+                 selectedSuggestion.suggestion !== selectedSuggestion.original && 
+                 !selectedSuggestion.suggestion.toLowerCase().includes('consider') &&
+                 !selectedSuggestion.suggestion.toLowerCase().includes('try to') &&
+                 !selectedSuggestion.suggestion.toLowerCase().includes('you might') &&
+                 !(selectedSuggestion.suggestion.startsWith('[') && selectedSuggestion.suggestion.endsWith(']')) ? (
+                  <button
+                    onClick={(e) => {
+                      console.log('Apply button clicked in modal!', e);
+                      applySuggestionClick(selectedSuggestion);
+                    }}
+                    disabled={!isDocumentEditable}
+                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDarkMode 
+                        ? 'bg-green-600 text-white hover:bg-green-700 disabled:hover:bg-green-600' 
+                        : 'bg-grammarly-green text-white hover:bg-green-600 disabled:hover:bg-grammarly-green'
+                    }`}
+                  >
+                    ✅ Apply Suggestion
+                  </button>
+                ) : (
+                  <div className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium text-center transition-colors ${
+                    isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    ℹ️ Advisory Only
+                  </div>
+                )}
                 <button
                   onClick={() => dismissSuggestion(selectedSuggestion.id)}
                   className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
@@ -835,7 +1036,12 @@ export function TextEditor() {
                   )}
                 </div>
                 
-                {suggestion.suggestion && suggestion.suggestion !== suggestion.original && (
+                {suggestion.suggestion && 
+                 suggestion.suggestion !== suggestion.original && 
+                 !suggestion.suggestion.toLowerCase().includes('consider') &&
+                 !suggestion.suggestion.toLowerCase().includes('try to') &&
+                 !suggestion.suggestion.toLowerCase().includes('you might') &&
+                 !(suggestion.suggestion.startsWith('[') && suggestion.suggestion.endsWith(']')) && (
                   <button
                     onClick={(e) => {
                       console.log('Apply button clicked in sidebar!', e, suggestion);

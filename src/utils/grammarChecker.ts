@@ -821,13 +821,20 @@ export function applySuggestion(text: string, suggestion: GrammarSuggestion): st
     suggestion: suggestion.suggestion,
     start: suggestion.start,
     end: suggestion.end,
-    textLength: text.length
+    textLength: text.length,
+    type: suggestion.type,
+    severity: suggestion.severity
   });
 
   // Don't apply advisory-only suggestions (they're for information only)
-  if (!suggestion.suggestion || suggestion.suggestion.trim() === '' || 
-      suggestion.suggestion.startsWith('[') && suggestion.suggestion.endsWith(']')) {
-    console.log('Skipping advisory-only suggestion');
+  if (!suggestion.suggestion || 
+      suggestion.suggestion.trim() === '' || 
+      suggestion.suggestion === suggestion.original ||
+      (suggestion.suggestion.startsWith('[') && suggestion.suggestion.endsWith(']')) ||
+      suggestion.suggestion.toLowerCase().includes('consider') ||
+      suggestion.suggestion.toLowerCase().includes('try to') ||
+      suggestion.suggestion.toLowerCase().includes('you might')) {
+    console.log('Skipping advisory-only suggestion:', suggestion.suggestion);
     return text;
   }
 
@@ -894,8 +901,21 @@ export function applySuggestion(text: string, suggestion: GrammarSuggestion): st
     return newText;
   }
 
-  // Fallback 3: Try fuzzy matching for close matches (handle extra spaces, punctuation, etc.)
-  const words = suggestion.original.split(/\s+/);
+  // Fallback 3: Try trimmed versions (handle extra whitespace)
+  const trimmedOriginal = suggestion.original.trim();
+  const trimmedIndex = text.indexOf(trimmedOriginal);
+  if (trimmedIndex !== -1 && trimmedOriginal.length > 0) {
+    console.log('Found trimmed match at position:', trimmedIndex);
+    const before = text.substring(0, trimmedIndex);
+    const after = text.substring(trimmedIndex + trimmedOriginal.length);
+    const newText = before + suggestion.suggestion + after;
+    
+    console.log('Successfully applied suggestion with trimmed match');
+    return newText;
+  }
+
+  // Fallback 4: Try fuzzy matching for close matches (handle extra spaces, punctuation, etc.)
+  const words = suggestion.original.split(/\s+/).filter(w => w.length > 0);
   if (words.length > 1) {
     // Try to match just the key words
     const keyWords = words.filter(word => word.length > 2); // Skip short words like "is", "a", etc.
@@ -915,19 +935,36 @@ export function applySuggestion(text: string, suggestion: GrammarSuggestion): st
     }
   }
 
-  // Fallback 4: For AI suggestions that might be trying to replace the entire text
+  // Fallback 5: For single word replacements, try word boundary matching
+  if (!suggestion.original.includes(' ') && suggestion.original.length > 2) {
+    const wordBoundaryRegex = new RegExp(`\\b${suggestion.original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    const match = text.match(wordBoundaryRegex);
+    if (match && match.index !== undefined) {
+      console.log('Found word boundary match:', match[0]);
+      const before = text.substring(0, match.index);
+      const after = text.substring(match.index + match[0].length);
+      const newText = before + suggestion.suggestion + after;
+      
+      console.log('Successfully applied suggestion with word boundary matching');
+      return newText;
+    }
+  }
+
+  // Fallback 6: For AI suggestions that might be trying to replace the entire text
   if (suggestion.start === 0 && suggestion.end >= text.length - 2) {
     console.log('Suggestion appears to be for entire text, applying as full replacement');
-    console.log('Replacing entire text with suggestion');
     return suggestion.suggestion;
   }
 
   console.error('Could not find original text to replace, all fallback methods failed:', {
     originalText: suggestion.original,
+    suggestionText: suggestion.suggestion,
     textPreview: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
-    suggestion: suggestion.suggestion
+    suggestionType: suggestion.type,
+    severity: suggestion.severity
   });
   
+  // Return original text unchanged if we can't apply the suggestion
   return text;
 }
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuthStore } from './store/useAuthStore'
 import { useAuthProvider } from './hooks/useAuthProvider'
 import { useProfileProvider } from './hooks/useProfileProvider'
@@ -144,6 +145,16 @@ function App() {
               </div>
               
               <div className="flex items-center space-x-4">
+                <Link
+                  to="/blog"
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    isDarkMode 
+                      ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  📚 Blog
+                </Link>
                 <DarkModeToggle size="sm" />
                 <button
                   onClick={() => setShowLoginPage(true)}
@@ -585,7 +596,7 @@ function App() {
                 <ul className="space-y-2 text-gray-400">
                   <li><button onClick={() => setShowFeaturesPage(true)} className="hover:text-white transition-colors text-left">Features</button></li>
                   <li><button onClick={() => setShowPricingPage(true)} className="hover:text-white transition-colors text-left">Pricing</button></li>
-                  
+                  <li><Link to="/blog" className="hover:text-white transition-colors text-left">Blog</Link></li>
                 </ul>
               </div>
               
